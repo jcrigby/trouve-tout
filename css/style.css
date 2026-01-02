@@ -291,6 +291,51 @@ header h1 {
   border-color: var(--accent);
 }
 
+/* Action button */
+.action-btn {
+  display: block;
+  width: 100%;
+  padding: 0.875rem 1rem;
+  margin: 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.action-btn:hover,
+.action-btn:active {
+  background: var(--accent-hover);
+}
+
+/* Inventory list in modal */
+.inventory-list {
+  margin-top: 1rem;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.inventory-list-item {
+  background: var(--bg-card);
+  padding: 0.75rem;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+}
+
+.inventory-list-item h4 {
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.inventory-list-item .meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
 /* No results */
 .no-results {
   text-align: center;

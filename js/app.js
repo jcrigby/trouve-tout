@@ -11,6 +11,7 @@ const photoSets = [
 ];
 
 let inventory = [];
+let currentBoxNumber = null;
 
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
@@ -120,13 +121,80 @@ function setupEventListeners() {
       }
     }
   });
+
+  // Show box contents button
+  document.getElementById('show-box-contents-btn').addEventListener('click', () => {
+    if (currentBoxNumber) {
+      showBoxContents(currentBoxNumber);
+    }
+  });
+
+  // Show all inventory button
+  document.getElementById('show-all-btn').addEventListener('click', () => {
+    showAllInventory();
+  });
+}
+
+// Show contents of a specific box
+function showBoxContents(boxNumber) {
+  const boxItems = inventory.filter(item => {
+    const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+    return itemBox === String(boxNumber);
+  });
+
+  const listHtml = renderInventoryList(boxItems);
+
+  // Remove existing list if any
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (existingList) existingList.remove();
+
+  // Add the list after the button
+  const btn = document.getElementById('show-box-contents-btn');
+  btn.insertAdjacentHTML('afterend', listHtml);
+}
+
+// Show all inventory
+function showAllInventory() {
+  // Switch to search mode and clear filters to show all
+  tabs.forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-mode="search"]').classList.add('active');
+
+  modeContents.forEach(content => {
+    content.classList.toggle('active', content.id === 'search-mode');
+  });
+
+  searchInput.value = '';
+  categoryFilter.value = '';
+  renderResults(inventory);
+}
+
+// Render inventory list HTML
+function renderInventoryList(items) {
+  if (items.length === 0) {
+    return '<div class="inventory-list"><p class="no-results">No items in this box</p></div>';
+  }
+
+  return `
+    <div class="inventory-list">
+      ${items.map(item => `
+        <div class="inventory-list-item">
+          <h4>${item.item}</h4>
+          <div class="meta">${item.brand || 'Unknown'}${item.model ? ' - ' + item.model : ''}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
 }
 
 // Show photo modal with box number
 function showPhotoModal(file, box, category) {
+  currentBoxNumber = box;
   document.getElementById('modal-box-number').textContent = `Box ${box}`;
   document.getElementById('modal-image').src = `images/${file}`;
   document.getElementById('modal-category').textContent = category;
+  // Clear any previous inventory list
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (existingList) existingList.remove();
   photoModal.classList.add('active');
 }
 
