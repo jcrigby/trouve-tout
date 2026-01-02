@@ -84,8 +84,8 @@ Located in `images/` folder. When adding new photos:
 ├── data/
 │   └── inventory.json       # Inventory data
 └── images/
-    ├── 1a.jpg, 1b.jpg, 1c.jpg  # Box 1 photos
-    ├── 2a.jpg, 2b.jpg          # Box 2 photos
+    ├── 1a.jpg, 1b.jpg          # Box 1 photos
+    ├── 2a.jpg, 2b.jpg, 2c.jpg  # Box 2 photos
     ├── 3a.jpg, 3b.jpg          # Box 3 photos
     └── 4a.jpg, 4b.jpg          # Box 4 photos
 ```
@@ -114,8 +114,6 @@ Located in `images/` folder. When adding new photos:
 
 ### Limitations
 - Claude cannot push directly to `main` (403 forbidden)
-- Claude cannot download external images (network restricted)
-- User must upload images via GitHub web UI or local clone
 
 ## UI Notes
 - Keep it simple and fast

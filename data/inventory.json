@@ -340,6 +340,16 @@
     "notes": "Orange with black bristles"
   },
   {
+    "id": "2c1",
+    "category": "Hand Tools & Misc",
+    "photoSet": "2c",
+    "item": "Electric Can Opener",
+    "brand": "Unknown",
+    "model": null,
+    "type": "electric",
+    "notes": "Test item"
+  },
+  {
     "id": "3a1",
     "category": "Sanders & Grinder",
     "photoSet": "3a/3b",

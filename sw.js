@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v5';
+const CACHE_NAME = 'trouve-tout-v6';
 const ASSETS = [
   '/',
   '/index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   '/images/1b.jpg',
   '/images/2a.jpg',
   '/images/2b.jpg',
+  '/images/2c.jpg',
   '/images/3a.jpg',
   '/images/3b.jpg',
   '/images/4a.jpg',
