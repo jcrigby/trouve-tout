@@ -120,16 +120,6 @@
     "notes": "Ultraviolet color, fake item for testing"
   },
   {
-    "id": "1c1",
-    "category": "Nail Guns & Fasteners",
-    "photoSet": "1c",
-    "item": "Electric Can Opener",
-    "brand": "Proctor Silex",
-    "model": null,
-    "type": "electric",
-    "notes": "Test item - placeholder image"
-  },
-  {
     "id": "2a1",
     "category": "Hand Tools & Misc",
     "photoSet": "2a/2b",

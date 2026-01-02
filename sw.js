@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v3';
+const CACHE_NAME = 'trouve-tout-v4';
 const ASSETS = [
   '/',
   '/index.html',
@@ -8,7 +8,6 @@ const ASSETS = [
   '/manifest.json',
   '/images/1a.jpg',
   '/images/1b.jpg',
-  '/images/1c.jpg',
   '/images/2a.jpg',
   '/images/2b.jpg',
   '/images/3a.jpg',
