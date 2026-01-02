@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v1';
+const CACHE_NAME = 'trouve-tout-v2';
 const ASSETS = [
   '/',
   '/index.html',
@@ -37,10 +37,33 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch - network first for data, stale-while-revalidate for assets
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+
+  // Network first for inventory data (always get fresh data if online)
+  if (url.pathname.endsWith('inventory.json')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // Stale-while-revalidate for other assets
   event.respondWith(
-    caches.match(event.request)
-      .then(cached => cached || fetch(event.request))
+    caches.match(event.request).then(cached => {
+      const fetchPromise = fetch(event.request).then(response => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        return response;
+      });
+      return cached || fetchPromise;
+    })
   );
 });
