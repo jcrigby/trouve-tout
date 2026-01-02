@@ -110,6 +110,16 @@
     "notes": "Yellow package"
   },
   {
+    "id": "1a12",
+    "category": "Nail Guns & Fasteners",
+    "photoSet": "1a/1b",
+    "item": "Ed's razor",
+    "brand": "Unknown",
+    "model": null,
+    "type": "invisible",
+    "notes": "Fake item for testing"
+  },
+  {
     "id": "2a1",
     "category": "Hand Tools & Misc",
     "photoSet": "2a/2b",
