@@ -2,6 +2,7 @@
 const photoSets = [
   { file: '1a.jpg', box: 1, view: 'a', category: 'Nail Guns & Fasteners' },
   { file: '1b.jpg', box: 1, view: 'b', category: 'Nail Guns & Fasteners' },
+  { file: '1c.jpg', box: 1, view: 'c', category: 'Nail Guns & Fasteners' },
   { file: '2a.jpg', box: 2, view: 'a', category: 'Hand Tools & Misc' },
   { file: '2b.jpg', box: 2, view: 'b', category: 'Hand Tools & Misc' },
   { file: '3a.jpg', box: 3, view: 'a', category: 'Sanders & Grinder' },
