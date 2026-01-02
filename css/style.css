@@ -312,6 +312,19 @@ header h1 {
   background: var(--accent-hover);
 }
 
+.action-btn.secondary {
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  text-decoration: none;
+  text-align: center;
+}
+
+.action-btn.secondary:hover,
+.action-btn.secondary:active {
+  border-color: var(--accent);
+  background: var(--bg-card);
+}
+
 /* Inventory list in modal */
 .inventory-list {
   margin-top: 1rem;
