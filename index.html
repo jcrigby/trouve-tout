@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>Trouve-Tout</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header>
+    <h1>Trouve-Tout</h1>
+    <p class="subtitle">Where's my crap?</p>
+  </header>
+
+  <nav class="mode-tabs">
+    <button class="tab active" data-mode="photos">Browse Photos</button>
+    <button class="tab" data-mode="search">Text Search</button>
+  </nav>
+
+  <main>
+    <!-- Photo Browse Mode -->
+    <section id="photos-mode" class="mode-content active">
+      <p class="instructions">Tap a photo to see its box number</p>
+      <div class="photo-grid" id="photo-grid"></div>
+    </section>
+
+    <!-- Text Search Mode -->
+    <section id="search-mode" class="mode-content">
+      <div class="search-box">
+        <input type="text" id="search-input" placeholder="Search tools..." autocomplete="off">
+      </div>
+      <div class="filter-bar">
+        <select id="category-filter">
+          <option value="">All Categories</option>
+        </select>
+      </div>
+      <div id="results"></div>
+    </section>
+  </main>
+
+  <!-- Photo Modal -->
+  <div id="photo-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="modal-box-number"></h2>
+      <img id="modal-image" src="" alt="">
+      <p id="modal-category"></p>
+    </div>
+  </div>
+
+  <!-- Item Detail Modal -->
+  <div id="item-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2 id="item-name"></h2>
+      <div id="item-details"></div>
+      <div class="item-photos" id="item-photos"></div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
