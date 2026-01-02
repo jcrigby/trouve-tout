@@ -12,9 +12,22 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - PWA with service worker for offline use
 - Single page app
 
+## Two Search Modes
+
+### 1. Browse Photos (Visual Grep)
+- Shows all box photos in a grid
+- Tap a photo to see the box number (extracted from filename)
+- User visually scans photos to find their item
+
+### 2. Text Search
+- Type in search box to filter items by item name, brand, model, notes, or type
+- Optional category dropdown filter
+- Tap a result to see item details and associated photos
+
 ## Data
-- `data/inventory.json` — array of tool items
-- `images/` — photos named `1a.jpg`, `1b.jpg`, `2a.jpg`, `2b.jpg`, `3a.jpg`, `3b.jpg`, `4a.jpg`, `4b.jpg`
+
+### Inventory File
+`data/inventory.json` — array of tool items
 
 ### Item Schema
 ```json
@@ -30,50 +43,85 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 }
 ```
 
-### Categories
-1. Nail Guns & Fasteners (photoSet: 1a/1b)
-2. Hand Tools & Misc (photoSet: 2a/2b)
-3. Sanders & Grinder (photoSet: 3a/3b)
-4. Saws & Grinders (photoSet: 4a/4b)
+### ID Convention
+- Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")
+- When adding new photos (e.g., 1c.jpg), use IDs like "1c1", "1c2"
 
-## Features
-- Search box that filters items by any field (item, brand, model, notes)
-- Filter by category
-- Tap item to see associated photos
-- Mobile-first responsive design
-- Works offline after first load
+### Categories (by box)
+1. **Box 1** - Nail Guns & Fasteners (photoSet: 1a/1b or 1c, etc.)
+2. **Box 2** - Hand Tools & Misc (photoSet: 2a/2b)
+3. **Box 3** - Sanders & Grinder (photoSet: 3a/3b)
+4. **Box 4** - Saws & Grinders (photoSet: 4a/4b)
+
+## Images
+
+### Naming Convention
+- Format: `{box}{view}.jpg` (e.g., 1a.jpg, 1b.jpg, 1c.jpg)
+- **Box number** = the number (1, 2, 3, 4)
+- **View letter** = different angles/perspectives (a, b, c, etc.)
+- Each box can have multiple photos from different perspectives
+
+### Current Images
+Located in `images/` folder. When adding new photos:
+1. Add the image file (e.g., `images/1c.jpg`)
+2. Add entry to `photoSets` array in `js/app.js`
+3. Add to `ASSETS` array in `sw.js`
+4. Bump `CACHE_NAME` version in `sw.js`
 
 ## File Structure
 ```
 /
 ├── index.html
 ├── manifest.json
-├── sw.js
+├── sw.js                    # Service worker
+├── .github/
+│   └── workflows/
+│       └── auto-merge-claude.yml
 ├── css/
 │   └── style.css
 ├── js/
-│   └── app.js
+│   └── app.js               # Main app logic, photoSets array
 ├── data/
-│   └── inventory.json
+│   └── inventory.json       # Inventory data
 └── images/
-    ├── 1a.jpg
-    ├── 1b.jpg
-    ├── 2a.jpg
-    ├── 2b.jpg
-    ├── 3a.jpg
-    ├── 3b.jpg
-    ├── 4a.jpg
-    └── 4b.jpg
+    ├── 1a.jpg, 1b.jpg, 1c.jpg  # Box 1 photos
+    ├── 2a.jpg, 2b.jpg          # Box 2 photos
+    ├── 3a.jpg, 3b.jpg          # Box 3 photos
+    └── 4a.jpg, 4b.jpg          # Box 4 photos
 ```
+
+## Service Worker Caching Strategy
+- **inventory.json**: Network-first (always fetches fresh data when online, falls back to cache offline)
+- **Other assets**: Stale-while-revalidate (serves cached immediately, updates in background)
+- Bump `CACHE_NAME` version when adding new assets to force cache refresh
+
+## Claude Workflow (Auto-Deploy)
+
+### How It Works
+1. Claude can only push to branches matching `claude/*-{sessionId}` pattern
+2. A GitHub Action (`.github/workflows/auto-merge-claude.yml`) auto-merges any `claude/*` branch to `main`
+3. GitHub Pages deploys from `main`
+
+### To Add/Update Items
+1. Edit `data/inventory.json` to add/modify items
+2. If adding new photos:
+   - Add image to `images/` folder
+   - Update `photoSets` in `js/app.js`
+   - Update `ASSETS` and bump `CACHE_NAME` in `sw.js`
+3. Commit and push to `claude/{description}-{sessionId}` branch
+4. Auto-merge workflow pushes to `main`
+5. GitHub Pages auto-deploys
+
+### Limitations
+- Claude cannot push directly to `main` (403 forbidden)
+- Claude cannot download external images (network restricted)
+- User must upload images via GitHub web UI or local clone
 
 ## UI Notes
 - Keep it simple and fast
 - Large touch targets for mobile use in the shop
 - Dark mode friendly (often used in garage/basement)
 - No unnecessary animations or transitions
-
-## Service Worker
-Cache inventory.json and all images on first load for offline access.
 
 ## Don't
 - No frameworks (React, Vue, etc.)
