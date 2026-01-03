@@ -7,6 +7,8 @@ const photoSets = [
   { file: '2c.jpg', box: 2, view: 'c', category: 'Hand Tools & Misc' },
   { file: '3a.jpg', box: 3, view: 'a', category: 'Sanders & Grinder' },
   { file: '3b.jpg', box: 3, view: 'b', category: 'Sanders & Grinder' },
+  { file: '3c.jpg', box: 3, view: 'c', category: 'Sanders & Grinder' },
+  { file: '3d.jpg', box: 3, view: 'd', category: 'Sanders & Grinder' },
   { file: '4a.jpg', box: 4, view: 'a', category: 'Saws & Grinders' },
   { file: '4b.jpg', box: 4, view: 'b', category: 'Saws & Grinders' }
 ];

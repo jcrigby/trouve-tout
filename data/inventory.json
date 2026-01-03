@@ -400,6 +400,26 @@
     "notes": "2-wheel, orange"
   },
   {
+    "id": "3c1",
+    "category": "Sanders & Grinder",
+    "photoSet": "3c",
+    "item": "Cordless Vacuum",
+    "brand": "Bauer",
+    "model": null,
+    "type": "cordless",
+    "notes": null
+  },
+  {
+    "id": "3d1",
+    "category": "Sanders & Grinder",
+    "photoSet": "3d",
+    "item": "Sander",
+    "brand": "Unknown",
+    "model": null,
+    "type": "electric",
+    "notes": null
+  },
+  {
     "id": "4a1",
     "category": "Saws & Grinders",
     "photoSet": "4a/4b",
