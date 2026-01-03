@@ -1029,8 +1029,125 @@ async function deletePhoto(filename) {
 // Current photo context for inventory entry
 let currentPhotoContext = null;
 
+// AI-suggested items from photo analysis
+let aiSuggestedItems = [];
+
+// Analyze photo with AI vision to detect tools
+async function analyzePhotoWithAI(file) {
+  const apiKey = localStorage.getItem('openrouter_key');
+  if (!apiKey) {
+    return null;
+  }
+
+  const base64 = await fileToBase64(file);
+
+  const prompt = `Look at this photo of tools/equipment and list each distinct item you can identify.
+
+For each item, provide:
+- item: name of the tool/item
+- brand: brand name if visible (or null)
+- model: model number if visible (or null)
+- type: category like "electric", "pneumatic", "hand tool", "cordless", "accessory", "fastener", "supply"
+- notes: brief description or condition notes
+
+Respond ONLY with a JSON array, no other text. Example:
+[{"item": "Circular Saw", "brand": "DeWalt", "model": "DWE575", "type": "electric", "notes": "Yellow, corded"}]`;
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': CALLBACK_URL,
+        'X-Title': 'Trouve-Tout'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3-haiku',
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:image/jpeg;base64,${base64}`
+              }
+            },
+            {
+              type: 'text',
+              text: prompt
+            }
+          ]
+        }]
+      })
+    });
+
+    if (!response.ok) {
+      console.error('Vision API error:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '';
+
+    // Parse JSON from response
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]);
+    }
+    return null;
+  } catch (err) {
+    console.error('Vision analysis error:', err);
+    return null;
+  }
+}
+
+// Render AI suggestions list
+function renderAISuggestions(items) {
+  aiSuggestedItems = items || [];
+  const container = document.getElementById('ai-suggestions');
+
+  if (!items || items.length === 0) {
+    container.innerHTML = '<p class="ai-suggestions-empty">No items detected</p>';
+    return;
+  }
+
+  container.innerHTML = `
+    <p class="ai-suggestions-label">AI detected ${items.length} item(s) - tap to add:</p>
+    <div class="ai-suggestions-list">
+      ${items.map((item, index) => `
+        <button type="button" class="ai-suggestion-item" data-index="${index}">
+          <span class="suggestion-name">${item.item}</span>
+          ${item.brand ? `<span class="suggestion-brand">${item.brand}</span>` : ''}
+        </button>
+      `).join('')}
+    </div>
+  `;
+
+  // Add click handlers
+  container.querySelectorAll('.ai-suggestion-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const index = parseInt(btn.dataset.index);
+      const item = aiSuggestedItems[index];
+      if (item) {
+        fillFormWithSuggestion(item);
+        btn.classList.add('used');
+      }
+    });
+  });
+}
+
+// Fill form with AI suggestion
+function fillFormWithSuggestion(item) {
+  document.getElementById('inventory-item').value = item.item || '';
+  document.getElementById('inventory-brand').value = item.brand || '';
+  document.getElementById('inventory-model').value = item.model || '';
+  document.getElementById('inventory-type').value = item.type || '';
+  document.getElementById('inventory-notes').value = item.notes || '';
+}
+
 // Show inventory entry section after photo upload
-function showInventoryEntrySection(filename, boxNumber, category, file) {
+function showInventoryEntrySection(filename, boxNumber, category, file, aiItems = null) {
   currentPhotoContext = { filename, boxNumber, category };
 
   document.getElementById('photo-upload-section').style.display = 'none';
@@ -1044,6 +1161,9 @@ function showInventoryEntrySection(filename, boxNumber, category, file) {
        <p style="color: var(--text-muted); font-size: 0.9rem;">Photo: ${filename}</p>`;
   };
   reader.readAsDataURL(file);
+
+  // Render AI suggestions if available
+  renderAISuggestions(aiItems);
 
   clearInventoryForm();
 }
@@ -1229,6 +1349,13 @@ function setupSettingsEventListeners() {
     statusEl.className = 'settings-status';
 
     try {
+      // Start AI analysis in parallel with upload (if connected to OpenRouter)
+      let aiItemsPromise = null;
+      if (isConnected()) {
+        statusEl.textContent = 'Uploading & analyzing...';
+        aiItemsPromise = analyzePhotoWithAI(file);
+      }
+
       const result = await uploadPhoto(file, boxNumber, category);
       statusEl.textContent = `Uploaded ${result.filename}!`;
       statusEl.className = 'settings-status success';
@@ -1242,10 +1369,18 @@ function setupSettingsEventListeners() {
       });
       renderPhotoGrid();
 
-      // Show inventory entry section
+      // Wait for AI analysis to complete
+      let aiItems = null;
+      if (aiItemsPromise) {
+        statusEl.textContent = 'Analyzing photo...';
+        aiItems = await aiItemsPromise;
+        statusEl.textContent = aiItems ? `Found ${aiItems.length} item(s)!` : 'Upload complete!';
+      }
+
+      // Show inventory entry section with AI suggestions
       setTimeout(() => {
-        showInventoryEntrySection(result.filename, boxNumber, category, file);
-      }, 1000);
+        showInventoryEntrySection(result.filename, boxNumber, category, file, aiItems);
+      }, 500);
     } catch (err) {
       console.error('Upload error:', err);
       statusEl.textContent = `Error: ${err.message}`;
