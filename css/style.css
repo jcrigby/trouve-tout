@@ -684,6 +684,65 @@ header {
   color: var(--text-secondary);
 }
 
+/* Pending Items List */
+.pending-items-label {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+#pending-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.pending-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.pending-item-info {
+  flex: 1;
+}
+
+.pending-item-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.pending-item-details {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.pending-item-remove {
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  line-height: 1;
+}
+
+.pending-item-remove:hover {
+  color: var(--accent-hover);
+}
+
+#commit-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
 /* Responsive */
 @media (min-width: 600px) {
   .photo-grid {

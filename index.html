@@ -124,7 +124,7 @@
     <div class="modal-content">
       <span class="close">&times;</span>
       <h2>Add Photo</h2>
-      <div class="add-photo-section" id="photo-upload-section">
+      <div class="add-photo-section" id="photo-select-section">
         <label for="photo-box-select">Box Number</label>
         <select id="photo-box-select">
           <option value="1">Box 1 - Nail Guns & Fasteners</option>
@@ -136,13 +136,11 @@
         <label for="photo-file-input">Select Photo</label>
         <input type="file" id="photo-file-input" accept="image/*">
         <div id="photo-preview"></div>
-        <button class="action-btn" id="upload-photo-btn" disabled>Upload Photo</button>
-        <p id="upload-status" class="settings-status"></p>
-      </div>
-      <div class="add-photo-section" id="inventory-entry-section" style="display: none;">
-        <p class="instructions">Add items visible in this photo (optional)</p>
-        <div id="inventory-photo-preview"></div>
+        <p id="analyze-status" class="settings-status"></p>
         <div id="ai-suggestions"></div>
+      </div>
+      <div class="add-photo-section" id="item-entry-section" style="display: none;">
+        <p class="instructions">Add or edit item details:</p>
         <label for="inventory-item">Item Name *</label>
         <input type="text" id="inventory-item" placeholder="e.g. Belt Sander">
         <label for="inventory-brand">Brand</label>
@@ -153,10 +151,16 @@
         <input type="text" id="inventory-type" placeholder="e.g. electric, pneumatic, hand tool">
         <label for="inventory-notes">Notes</label>
         <input type="text" id="inventory-notes" placeholder="e.g. In case, needs new belt">
-        <button class="action-btn" id="save-inventory-btn">Save Item</button>
-        <button class="action-btn secondary" id="add-another-btn">Add Another Item</button>
-        <button class="action-btn secondary" id="done-inventory-btn">Done</button>
-        <p id="inventory-status" class="settings-status"></p>
+        <button class="action-btn secondary" id="add-item-btn">+ Add to List</button>
+      </div>
+      <div class="add-photo-section" id="pending-items-section" style="display: none;">
+        <p class="pending-items-label">Items to save:</p>
+        <div id="pending-items-list"></div>
+      </div>
+      <div class="add-photo-section" id="commit-section" style="display: none;">
+        <button class="action-btn" id="commit-all-btn">Upload Photo & Save Items</button>
+        <button class="action-btn secondary" id="cancel-btn">Cancel</button>
+        <p id="commit-status" class="settings-status"></p>
       </div>
     </div>
   </div>
