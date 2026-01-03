@@ -25,6 +25,11 @@ const OPENROUTER_TOKEN_URL = 'https://openrouter.ai/api/v1/auth/keys';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CALLBACK_URL = window.location.origin + window.location.pathname;
 
+// GitHub config
+const GITHUB_OWNER = 'jcrigby';
+const GITHUB_REPO = 'trouve-tout';
+const GITHUB_API_URL = 'https://api.github.com';
+
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
 const searchInput = document.getElementById('search-input');
@@ -42,6 +47,7 @@ async function init() {
   populateCategories();
   setupEventListeners();
   setupAIEventListeners();
+  setupSettingsEventListeners();
   registerServiceWorker();
 
   // Handle OAuth callback if returning from OpenRouter
@@ -626,6 +632,207 @@ function setupAIEventListeners() {
         askAI(input.value.trim());
       }
     }
+  });
+}
+
+// ==================== GitHub Integration ====================
+
+// Get GitHub PAT from localStorage
+function getGitHubPAT() {
+  return localStorage.getItem('github_pat');
+}
+
+// Save GitHub PAT to localStorage
+function saveGitHubPAT(pat) {
+  localStorage.setItem('github_pat', pat);
+}
+
+// Check if GitHub is configured
+function isGitHubConfigured() {
+  return !!getGitHubPAT();
+}
+
+// Get next available view letter for a box
+function getNextViewLetter(boxNumber) {
+  const existingViews = photoSets
+    .filter(p => p.box === boxNumber)
+    .map(p => p.view);
+
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+  for (const letter of alphabet) {
+    if (!existingViews.includes(letter)) {
+      return letter;
+    }
+  }
+  return 'z'; // fallback
+}
+
+// Commit a file to GitHub
+async function commitToGitHub(path, content, message) {
+  const pat = getGitHubPAT();
+  if (!pat) {
+    throw new Error('GitHub PAT not configured');
+  }
+
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: message,
+      content: content, // must be base64 encoded
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || `GitHub API error: ${response.status}`);
+  }
+
+  return await response.json();
+}
+
+// Convert file to base64
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+      const base64 = reader.result.split(',')[1];
+      resolve(base64);
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Upload photo to GitHub
+async function uploadPhoto(file, boxNumber) {
+  const viewLetter = getNextViewLetter(parseInt(boxNumber));
+  const filename = `${boxNumber}${viewLetter}.jpg`;
+  const path = `images/${filename}`;
+
+  const base64Content = await fileToBase64(file);
+  const message = `Add photo ${filename} for Box ${boxNumber}`;
+
+  await commitToGitHub(path, base64Content, message);
+
+  return { filename, boxNumber, viewLetter };
+}
+
+// Setup settings event listeners
+function setupSettingsEventListeners() {
+  const settingsModal = document.getElementById('settings-modal');
+  const addPhotoModal = document.getElementById('add-photo-modal');
+
+  // Settings button
+  document.getElementById('settings-btn').addEventListener('click', () => {
+    // Load current PAT if exists
+    const pat = getGitHubPAT();
+    if (pat) {
+      document.getElementById('github-pat-input').value = pat;
+      document.getElementById('pat-status').textContent = 'Token saved';
+      document.getElementById('pat-status').className = 'settings-status success';
+    }
+    settingsModal.classList.add('active');
+  });
+
+  // Save PAT button
+  document.getElementById('save-pat-btn').addEventListener('click', () => {
+    const pat = document.getElementById('github-pat-input').value.trim();
+    if (pat) {
+      saveGitHubPAT(pat);
+      document.getElementById('pat-status').textContent = 'Token saved!';
+      document.getElementById('pat-status').className = 'settings-status success';
+    } else {
+      document.getElementById('pat-status').textContent = 'Please enter a token';
+      document.getElementById('pat-status').className = 'settings-status error';
+    }
+  });
+
+  // Add photo button
+  document.getElementById('add-photo-btn').addEventListener('click', () => {
+    if (!isGitHubConfigured()) {
+      alert('Please configure your GitHub token in Settings first');
+      settingsModal.classList.add('active');
+      return;
+    }
+    // Reset the form
+    document.getElementById('photo-file-input').value = '';
+    document.getElementById('photo-preview').innerHTML = '';
+    document.getElementById('upload-photo-btn').disabled = true;
+    document.getElementById('upload-status').textContent = '';
+    addPhotoModal.classList.add('active');
+  });
+
+  // File input change - show preview
+  document.getElementById('photo-file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        document.getElementById('photo-preview').innerHTML =
+          `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;">`;
+        document.getElementById('upload-photo-btn').disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Upload photo button
+  document.getElementById('upload-photo-btn').addEventListener('click', async () => {
+    const file = document.getElementById('photo-file-input').files[0];
+    const boxNumber = document.getElementById('photo-box-select').value;
+    const statusEl = document.getElementById('upload-status');
+    const uploadBtn = document.getElementById('upload-photo-btn');
+
+    if (!file) return;
+
+    uploadBtn.disabled = true;
+    statusEl.textContent = 'Uploading...';
+    statusEl.className = 'settings-status';
+
+    try {
+      const result = await uploadPhoto(file, boxNumber);
+      statusEl.textContent = `Uploaded ${result.filename}! Refresh to see it.`;
+      statusEl.className = 'settings-status success';
+
+      // Add to local photoSets so it shows without refresh
+      const category = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
+      photoSets.push({
+        file: result.filename,
+        box: parseInt(result.boxNumber),
+        view: result.viewLetter,
+        category: category
+      });
+      renderPhotoGrid();
+
+      // Close modal after short delay
+      setTimeout(() => {
+        addPhotoModal.classList.remove('active');
+      }, 1500);
+    } catch (err) {
+      console.error('Upload error:', err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'settings-status error';
+      uploadBtn.disabled = false;
+    }
+  });
+
+  // Close buttons for new modals
+  [settingsModal, addPhotoModal].forEach(modal => {
+    modal.querySelector('.close').addEventListener('click', () => {
+      modal.classList.remove('active');
+    });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.classList.remove('active');
+      }
+    });
   });
 }
 

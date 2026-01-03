@@ -461,6 +461,86 @@ header h1 {
   padding: 0.5rem 1rem;
 }
 
+/* Settings button */
+.settings-btn {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.5rem;
+}
+
+.settings-btn:hover,
+.settings-btn:active {
+  color: var(--accent);
+}
+
+header {
+  position: relative;
+}
+
+/* Settings and Add Photo modals */
+.settings-section,
+.add-photo-section {
+  text-align: left;
+}
+
+.settings-section label,
+.add-photo-section label {
+  display: block;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.settings-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+#github-pat-input,
+#photo-box-select {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#github-pat-input:focus,
+#photo-box-select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#photo-file-input {
+  width: 100%;
+  padding: 0.75rem;
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.settings-status {
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+  color: var(--text-secondary);
+}
+
+.settings-status.success {
+  color: #4caf50;
+}
+
+.settings-status.error {
+  color: var(--accent);
+}
+
 /* Responsive */
 @media (min-width: 600px) {
   .photo-grid {

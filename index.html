@@ -12,6 +12,7 @@
   <header>
     <h1>Trouve-Tout</h1>
     <p class="subtitle">Where's my crap?</p>
+    <button id="settings-btn" class="settings-btn" title="Settings">&#9881;</button>
   </header>
 
   <nav class="mode-tabs">
@@ -26,7 +27,7 @@
       <p class="instructions">Tap a photo to see its box number</p>
       <button class="action-btn" id="show-all-btn">Show All Inventory</button>
       <button class="action-btn secondary" id="idiot-check-btn">Am I an idiot?</button>
-      <a class="action-btn secondary" href="https://github.com/jcrigby/trouve-tout/issues/new?title=Add%20image&body=Paste%20image%20here" target="_blank">+ Add Image via GitHub</a>
+      <button class="action-btn secondary" id="add-photo-btn">+ Add Photo</button>
       <div class="photo-grid" id="photo-grid"></div>
     </section>
 
@@ -80,6 +81,44 @@
       <h2 id="item-name"></h2>
       <div id="item-details"></div>
       <div class="item-photos" id="item-photos"></div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settings-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Settings</h2>
+      <div class="settings-section">
+        <label for="github-pat-input">GitHub Personal Access Token</label>
+        <p class="settings-note">Required to add photos. Create at GitHub → Settings → Developer Settings → Personal Access Tokens</p>
+        <input type="password" id="github-pat-input" placeholder="ghp_xxxxxxxxxxxx">
+        <button class="action-btn" id="save-pat-btn">Save Token</button>
+        <p id="pat-status" class="settings-status"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Photo Modal -->
+  <div id="add-photo-modal" class="modal">
+    <div class="modal-content">
+      <span class="close">&times;</span>
+      <h2>Add Photo</h2>
+      <div class="add-photo-section">
+        <label for="photo-box-select">Box Number</label>
+        <select id="photo-box-select">
+          <option value="1">Box 1 - Nail Guns & Fasteners</option>
+          <option value="2">Box 2 - Hand Tools & Misc</option>
+          <option value="3">Box 3 - Sanders & Grinder</option>
+          <option value="4">Box 4 - Saws & Grinders</option>
+          <option value="5">Box 5 - (New Box)</option>
+        </select>
+        <label for="photo-file-input">Select Photo</label>
+        <input type="file" id="photo-file-input" accept="image/*" capture="environment">
+        <div id="photo-preview"></div>
+        <button class="action-btn" id="upload-photo-btn" disabled>Upload Photo</button>
+        <p id="upload-status" class="settings-status"></p>
+      </div>
     </div>
   </div>
 
