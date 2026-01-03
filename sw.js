@@ -1,10 +1,11 @@
-const CACHE_NAME = 'trouve-tout-v23';
+const CACHE_NAME = 'trouve-tout-v24';
 const ASSETS = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/app.js',
   '/data/inventory.json',
+  '/data/photosets.json',
   '/manifest.json',
   '/images/1a.jpg',
   '/images/1b.jpg',
@@ -44,8 +45,8 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Network first for inventory data (always get fresh data if online)
-  if (url.pathname.endsWith('inventory.json')) {
+  // Network first for data files (always get fresh data if online)
+  if (url.pathname.endsWith('inventory.json') || url.pathname.endsWith('photosets.json')) {
     event.respondWith(
       fetch(event.request)
         .then(response => {
