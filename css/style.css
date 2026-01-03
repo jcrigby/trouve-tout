@@ -259,6 +259,12 @@ header h1 {
   margin-bottom: 0.75rem;
 }
 
+#modal-image {
+  touch-action: pan-y;
+  cursor: grab;
+  user-select: none;
+}
+
 .modal p {
   color: var(--text-secondary);
 }

@@ -142,13 +142,16 @@ function setupEventListeners() {
   });
 
   // Swipe navigation for photo modal
-  const modalContent = photoModal.querySelector('.modal-content');
-  modalContent.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].screenX;
+  const modalImage = document.getElementById('modal-image');
+  modalImage.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
   }, { passive: true });
 
-  modalContent.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].screenX;
+  modalImage.addEventListener('touchmove', (e) => {
+    touchEndX = e.touches[0].clientX;
+  }, { passive: true });
+
+  modalImage.addEventListener('touchend', () => {
     handleSwipe();
   }, { passive: true });
 
