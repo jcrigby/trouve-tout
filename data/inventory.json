@@ -528,5 +528,15 @@
     "model": null,
     "type": "hand tool",
     "notes": null
+  },
+  {
+    "id": "1c1",
+    "category": "Nail Guns & Fasteners",
+    "photoSet": "1c",
+    "item": "Can opener",
+    "brand": null,
+    "model": null,
+    "type": null,
+    "notes": null
   }
 ]
