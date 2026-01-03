@@ -209,16 +209,12 @@ function renderInventoryList(items) {
     return '<div class="inventory-list"><p class="no-results">No items in this box</p></div>';
   }
 
-  return `
-    <div class="inventory-list">
-      ${items.map(item => `
-        <div class="inventory-list-item">
-          <h4>${item.item}</h4>
-          <div class="meta">${item.brand || 'Unknown'}${item.model ? ' - ' + item.model : ''}</div>
-        </div>
-      `).join('')}
-    </div>
-  `;
+  const itemList = items.map(item => {
+    const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
+    return item.item + brand;
+  }).join(', ');
+
+  return `<div class="inventory-list"><p>${itemList}</p></div>`;
 }
 
 // Show photo modal with box number

@@ -339,21 +339,10 @@ header h1 {
   overflow-y: auto;
 }
 
-.inventory-list-item {
-  background: var(--bg-card);
-  padding: 0.75rem;
-  border-radius: 6px;
-  margin-bottom: 0.5rem;
-}
-
-.inventory-list-item h4 {
-  font-size: 0.95rem;
-  margin-bottom: 0.25rem;
-}
-
-.inventory-list-item .meta {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
+.inventory-list p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--text-primary);
 }
 
 /* No results */
