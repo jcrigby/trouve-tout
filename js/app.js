@@ -1081,6 +1081,31 @@ function setupSettingsEventListeners() {
     }
   });
 
+  // Sync button
+  document.getElementById('sync-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('sync-status');
+    const syncBtn = document.getElementById('sync-btn');
+
+    syncBtn.disabled = true;
+    statusEl.textContent = 'Syncing...';
+    statusEl.className = 'settings-status';
+
+    try {
+      await loadPhotoSets();
+      await loadInventory();
+      renderPhotoGrid();
+      populateCategories();
+      statusEl.textContent = `Synced! ${photoSets.length} photos, ${inventory.length} items`;
+      statusEl.className = 'settings-status success';
+    } catch (err) {
+      console.error('Sync error:', err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'settings-status error';
+    }
+
+    syncBtn.disabled = false;
+  });
+
   // Add photo button
   document.getElementById('add-photo-btn').addEventListener('click', () => {
     if (!isGitHubConfigured()) {
