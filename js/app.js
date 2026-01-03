@@ -1,17 +1,5 @@
-// Photo sets with their box numbers and categories
-const photoSets = [
-  { file: '1a.jpg', box: 1, view: 'a', category: 'Nail Guns & Fasteners' },
-  { file: '1b.jpg', box: 1, view: 'b', category: 'Nail Guns & Fasteners' },
-  { file: '2a.jpg', box: 2, view: 'a', category: 'Hand Tools & Misc' },
-  { file: '2b.jpg', box: 2, view: 'b', category: 'Hand Tools & Misc' },
-  { file: '3a.jpg', box: 3, view: 'a', category: 'Sanders & Grinder' },
-  { file: '3b.jpg', box: 3, view: 'b', category: 'Sanders & Grinder' },
-  { file: '3c.jpg', box: 3, view: 'c', category: 'Sanders & Grinder' },
-  { file: '3d.jpg', box: 3, view: 'd', category: 'Sanders & Grinder' },
-  { file: '3e.jpg', box: 3, view: 'e', category: 'Sanders & Grinder' },
-  { file: '4a.jpg', box: 4, view: 'a', category: 'Saws & Grinders' },
-  { file: '4b.jpg', box: 4, view: 'b', category: 'Saws & Grinders' }
-];
+// Photo sets - loaded from JSON
+let photoSets = [];
 
 let inventory = [];
 let currentBoxNumber = null;
@@ -42,6 +30,7 @@ const modeContents = document.querySelectorAll('.mode-content');
 
 // Initialize app
 async function init() {
+  await loadPhotoSets();
   await loadInventory();
   renderPhotoGrid();
   populateCategories();
@@ -63,6 +52,17 @@ async function init() {
 
   // Update AI UI based on connection status
   updateAIConnectionUI();
+}
+
+// Load photo sets data
+async function loadPhotoSets() {
+  try {
+    const response = await fetch('data/photosets.json');
+    photoSets = await response.json();
+  } catch (err) {
+    console.error('Failed to load photosets:', err);
+    photoSets = [];
+  }
 }
 
 // Load inventory data
@@ -724,8 +724,59 @@ function fileToBase64(file) {
   });
 }
 
+// Get file info from GitHub (including SHA for updates)
+async function getFileFromGitHub(path) {
+  const pat = getGitHubPAT();
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
+
+  const response = await fetch(url, {
+    headers: { 'Authorization': `token ${pat}` }
+  });
+
+  if (!response.ok) return null;
+  return await response.json();
+}
+
+// Update photosets.json on GitHub
+async function updatePhotoSetsOnGitHub(newEntry) {
+  const path = 'data/photosets.json';
+  const fileInfo = await getFileFromGitHub(path);
+
+  if (!fileInfo) {
+    throw new Error('Could not fetch photosets.json');
+  }
+
+  // Decode current content
+  const currentContent = JSON.parse(atob(fileInfo.content));
+  currentContent.push(newEntry);
+
+  // Encode updated content
+  const updatedContent = btoa(JSON.stringify(currentContent, null, 2));
+
+  const pat = getGitHubPAT();
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: `Add ${newEntry.file} to photosets`,
+      content: updatedContent,
+      sha: fileInfo.sha
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update photosets.json');
+  }
+}
+
 // Upload photo to GitHub
-async function uploadPhoto(file, boxNumber) {
+async function uploadPhoto(file, boxNumber, category) {
   const viewLetter = await getNextViewLetter(parseInt(boxNumber));
   const filename = `${boxNumber}${viewLetter}.jpg`;
   const path = `images/${filename}`;
@@ -733,7 +784,17 @@ async function uploadPhoto(file, boxNumber) {
   const base64Content = await fileToBase64(file);
   const message = `Add photo ${filename} for Box ${boxNumber}`;
 
+  // Upload the image
   await commitToGitHub(path, base64Content, message);
+
+  // Update photosets.json
+  const newEntry = {
+    file: filename,
+    box: parseInt(boxNumber),
+    view: viewLetter,
+    category: category
+  };
+  await updatePhotoSetsOnGitHub(newEntry);
 
   return { filename, boxNumber, viewLetter };
 }
@@ -801,6 +862,7 @@ function setupSettingsEventListeners() {
   document.getElementById('upload-photo-btn').addEventListener('click', async () => {
     const file = document.getElementById('photo-file-input').files[0];
     const boxNumber = document.getElementById('photo-box-select').value;
+    const category = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
     const statusEl = document.getElementById('upload-status');
     const uploadBtn = document.getElementById('upload-photo-btn');
 
@@ -811,12 +873,11 @@ function setupSettingsEventListeners() {
     statusEl.className = 'settings-status';
 
     try {
-      const result = await uploadPhoto(file, boxNumber);
-      statusEl.textContent = `Uploaded ${result.filename}! Refresh to see it.`;
+      const result = await uploadPhoto(file, boxNumber, category);
+      statusEl.textContent = `Uploaded ${result.filename}!`;
       statusEl.className = 'settings-status success';
 
       // Add to local photoSets so it shows without refresh
-      const category = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
       photoSets.push({
         file: result.filename,
         box: parseInt(result.boxNumber),
