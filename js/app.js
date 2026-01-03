@@ -54,22 +54,46 @@ async function init() {
   updateAIConnectionUI();
 }
 
-// Load photo sets data
+// Load photo sets data (from GitHub API if PAT configured, otherwise static file)
 async function loadPhotoSets() {
   try {
+    const pat = getGitHubPAT();
+    if (pat) {
+      // Fetch from GitHub API for latest data
+      const fileInfo = await getFileFromGitHub('data/photosets.json');
+      if (fileInfo && fileInfo.content) {
+        photoSets = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+        console.log('Loaded photosets from GitHub API');
+        return;
+      }
+    }
+    // Fall back to static file
     const response = await fetch('data/photosets.json');
     photoSets = await response.json();
+    console.log('Loaded photosets from static file');
   } catch (err) {
     console.error('Failed to load photosets:', err);
     photoSets = [];
   }
 }
 
-// Load inventory data
+// Load inventory data (from GitHub API if PAT configured, otherwise static file)
 async function loadInventory() {
   try {
+    const pat = getGitHubPAT();
+    if (pat) {
+      // Fetch from GitHub API for latest data
+      const fileInfo = await getFileFromGitHub('data/inventory.json');
+      if (fileInfo && fileInfo.content) {
+        inventory = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+        console.log('Loaded inventory from GitHub API');
+        return;
+      }
+    }
+    // Fall back to static file
     const response = await fetch('data/inventory.json');
     inventory = await response.json();
+    console.log('Loaded inventory from static file');
   } catch (err) {
     console.error('Failed to load inventory:', err);
     inventory = [];
