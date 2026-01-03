@@ -1028,7 +1028,7 @@ async function deletePhoto(filename) {
 
 // Current photo context for dry run
 let currentPhotoFile = null;
-let currentBoxNumber = null;
+// Note: currentBoxNumber is already declared at top of file
 let currentCategory = null;
 
 // AI-suggested items from photo analysis
