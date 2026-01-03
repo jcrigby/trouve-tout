@@ -141,6 +141,11 @@ function setupEventListeners() {
     showAllInventory();
   });
 
+  // Idiot check button
+  document.getElementById('idiot-check-btn').addEventListener('click', () => {
+    showIdiotCheck();
+  });
+
   // Swipe navigation for photo modal
   const modalImage = document.getElementById('modal-image');
   modalImage.addEventListener('touchstart', (e) => {
@@ -204,6 +209,33 @@ function showAllInventory() {
   renderResults(inventory);
 }
 
+// Show idiot check - things that don't belong together
+function showIdiotCheck() {
+  const suggestions = [
+    { item: 'Cordless Vacuum', box: 3, issue: 'A vacuum in the Sanders box? It sucks, but not in the sanding way.' },
+    { item: 'Putty Knives/Scrapers', box: 4, issue: 'Hand tools crashing the power tool party in Saws & Grinders.' },
+    { item: 'Propane Torch Kit', box: 2, issue: 'Fire and chisels are roommates. What could go wrong?' }
+  ];
+
+  const html = suggestions.map(s =>
+    `<div class="suggestion-item">
+      <strong>${s.item}</strong> (Box ${s.box})<br>
+      <span class="suggestion-note">${s.issue}</span>
+    </div>`
+  ).join('');
+
+  // Show in a simple alert-style modal (reuse photo modal structure)
+  document.getElementById('modal-box-number').textContent = 'Maybe reconsider...';
+  document.getElementById('modal-image').style.display = 'none';
+  document.getElementById('modal-category').innerHTML = html;
+
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (existingList) existingList.remove();
+
+  document.getElementById('show-box-contents-btn').style.display = 'none';
+  photoModal.classList.add('active');
+}
+
 // Render inventory list HTML
 function renderInventoryList(items) {
   if (items.length === 0) {
@@ -223,8 +255,11 @@ function showPhotoModal(file, box, category) {
   currentPhotoIndex = photoSets.findIndex(p => p.file === file);
   currentBoxNumber = box;
   document.getElementById('modal-box-number').textContent = `Box ${box}`;
-  document.getElementById('modal-image').src = `images/${file}`;
+  const modalImage = document.getElementById('modal-image');
+  modalImage.src = `images/${file}`;
+  modalImage.style.display = '';
   document.getElementById('modal-category').textContent = category;
+  document.getElementById('show-box-contents-btn').style.display = '';
   // Clear any previous inventory list
   const existingList = photoModal.querySelector('.inventory-list');
   if (existingList) existingList.remove();
