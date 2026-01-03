@@ -53,12 +53,24 @@
         <p class="ai-note">Requires an OpenRouter account (free to sign up)</p>
       </div>
       <div id="ai-connected" style="display: none;">
-        <div class="search-box">
-          <input type="text" id="ai-input" placeholder="Ask about your tools..." autocomplete="off">
+        <div class="chat-container" id="chat-container">
+          <div class="chat-messages" id="chat-messages">
+            <div class="chat-welcome">
+              <p>Ask me anything about your tool inventory!</p>
+              <p class="ai-examples">"Where's my belt sander?" • "What nailers do I have?"</p>
+            </div>
+          </div>
+          <div class="chat-input-area">
+            <input type="text" id="ai-input" placeholder="Ask about your tools..." autocomplete="off">
+            <button class="chat-send-btn" id="ai-ask-btn">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
         </div>
-        <button class="action-btn" id="ai-ask-btn">Ask</button>
-        <div id="ai-response"></div>
         <button class="action-btn secondary" id="ai-disconnect-btn">Disconnect</button>
+        <button class="action-btn secondary" id="ai-clear-btn">Clear Chat</button>
       </div>
     </section>
   </main>

@@ -596,6 +596,7 @@ function isConnected() {
 // Disconnect from OpenRouter
 function disconnect() {
   localStorage.removeItem('openrouter_key');
+  chatHistory = [];
   updateAIConnectionUI();
 }
 
@@ -613,15 +614,70 @@ function updateAIConnectionUI() {
   }
 }
 
-// Ask AI about inventory
+// Chat history for conversation context
+let chatHistory = [];
+
+// Add message to chat UI
+function addChatMessage(content, role, isError = false) {
+  const messagesContainer = document.getElementById('chat-messages');
+
+  // Remove welcome message if present
+  const welcome = messagesContainer.querySelector('.chat-welcome');
+  if (welcome) welcome.remove();
+
+  const messageDiv = document.createElement('div');
+  messageDiv.className = `chat-message ${role}${isError ? ' error' : ''}`;
+  messageDiv.textContent = content;
+  messagesContainer.appendChild(messageDiv);
+
+  // Scroll to bottom
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+  return messageDiv;
+}
+
+// Remove thinking message
+function removeThinkingMessage() {
+  const messagesContainer = document.getElementById('chat-messages');
+  const thinking = messagesContainer.querySelector('.chat-message.thinking');
+  if (thinking) thinking.remove();
+}
+
+// Clear chat history
+function clearChat() {
+  chatHistory = [];
+  const messagesContainer = document.getElementById('chat-messages');
+  messagesContainer.innerHTML = `
+    <div class="chat-welcome">
+      <p>Ask me anything about your tool inventory!</p>
+      <p class="ai-examples">"Where's my belt sander?" • "What nailers do I have?"</p>
+    </div>
+  `;
+}
+
+// Ask AI about inventory (with conversation history)
 async function askAI(question) {
   const apiKey = localStorage.getItem('openrouter_key');
   if (!apiKey) {
-    return 'Not connected to OpenRouter. Please connect first.';
+    addChatMessage('Not connected to OpenRouter. Please connect first.', 'assistant', true);
+    return;
   }
 
-  const responseDiv = document.getElementById('ai-response');
-  responseDiv.innerHTML = '<p class="ai-thinking">Thinking...</p>';
+  const input = document.getElementById('ai-input');
+  const sendBtn = document.getElementById('ai-ask-btn');
+
+  // Disable input while processing
+  input.disabled = true;
+  sendBtn.disabled = true;
+
+  // Add user message to UI
+  addChatMessage(question, 'user');
+
+  // Add to history
+  chatHistory.push({ role: 'user', content: question });
+
+  // Show thinking indicator
+  addChatMessage('Thinking...', 'thinking');
 
   // Build context with inventory
   const inventoryContext = JSON.stringify(inventory, null, 2);
@@ -635,6 +691,13 @@ Answer questions about their inventory conversationally and helpfully.
 When mentioning items, include the box number so they can find them.
 Keep answers concise but friendly.`;
 
+  // Build messages array with history (limit to last 10 exchanges to avoid token limits)
+  const recentHistory = chatHistory.slice(-20);
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...recentHistory
+  ];
+
   try {
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
@@ -646,12 +709,11 @@ Keep answers concise but friendly.`;
       },
       body: JSON.stringify({
         model: 'anthropic/claude-3-haiku',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: question }
-        ]
+        messages: messages
       })
     });
+
+    removeThinkingMessage();
 
     if (!response.ok) {
       const error = await response.json();
@@ -660,13 +722,24 @@ Keep answers concise but friendly.`;
 
     const data = await response.json();
     const answer = data.choices?.[0]?.message?.content || 'No response received';
-    responseDiv.innerHTML = `<div class="ai-answer">${answer}</div>`;
-    return answer;
+
+    // Add to history and UI
+    chatHistory.push({ role: 'assistant', content: answer });
+    addChatMessage(answer, 'assistant');
+
   } catch (err) {
     console.error('AI query error:', err);
-    responseDiv.innerHTML = `<p class="ai-error">Error: ${err.message}</p>`;
-    return null;
+    removeThinkingMessage();
+    addChatMessage(`Error: ${err.message}`, 'assistant', true);
+    // Remove the failed exchange from history
+    chatHistory.pop();
   }
+
+  // Re-enable input
+  input.disabled = false;
+  sendBtn.disabled = false;
+  input.value = '';
+  input.focus();
 }
 
 // Setup AI event listeners
@@ -681,6 +754,11 @@ function setupAIEventListeners() {
     disconnect();
   });
 
+  // Clear chat button
+  document.getElementById('ai-clear-btn').addEventListener('click', () => {
+    clearChat();
+  });
+
   // Ask button
   document.getElementById('ai-ask-btn').addEventListener('click', () => {
     const input = document.getElementById('ai-input');
@@ -691,7 +769,8 @@ function setupAIEventListeners() {
 
   // Enter key on input
   document.getElementById('ai-input').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
       const input = document.getElementById('ai-input');
       if (input.value.trim()) {
         askAI(input.value.trim());
