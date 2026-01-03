@@ -99,9 +99,10 @@ function setupEventListeners() {
   // Category filter
   categoryFilter.addEventListener('change', performSearch);
 
-  // Modal close buttons
-  document.querySelectorAll('.modal .close').forEach(btn => {
-    btn.addEventListener('click', () => {
+  // Modal close buttons and home links
+  document.querySelectorAll('.modal .close, .modal-home').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
       photoModal.classList.remove('active');
       itemModal.classList.remove('active');
     });
