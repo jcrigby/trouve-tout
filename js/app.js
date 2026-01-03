@@ -1026,11 +1026,16 @@ async function deletePhoto(filename) {
   }
 }
 
-// Current photo context for inventory entry
-let currentPhotoContext = null;
+// Current photo context for dry run
+let currentPhotoFile = null;
+let currentBoxNumber = null;
+let currentCategory = null;
 
 // AI-suggested items from photo analysis
 let aiSuggestedItems = [];
+
+// Pending items to save (dry run list)
+let pendingItems = [];
 
 // Analyze photo with AI vision to detect tools
 async function analyzePhotoWithAI(file) {
@@ -1108,12 +1113,14 @@ function renderAISuggestions(items) {
   const container = document.getElementById('ai-suggestions');
 
   if (!items || items.length === 0) {
-    container.innerHTML = '<p class="ai-suggestions-empty">No items detected</p>';
+    container.innerHTML = '';
+    container.style.display = 'none';
     return;
   }
 
+  container.style.display = 'block';
   container.innerHTML = `
-    <p class="ai-suggestions-label">AI detected ${items.length} item(s) - tap to add:</p>
+    <p class="ai-suggestions-label">AI detected ${items.length} item(s) - tap to fill form:</p>
     <div class="ai-suggestions-list">
       ${items.map((item, index) => `
         <button type="button" class="ai-suggestion-item" data-index="${index}">
@@ -1124,13 +1131,14 @@ function renderAISuggestions(items) {
     </div>
   `;
 
-  // Add click handlers
+  // Add click handlers - fill form with suggestion
   container.querySelectorAll('.ai-suggestion-item').forEach(btn => {
     btn.addEventListener('click', () => {
       const index = parseInt(btn.dataset.index);
       const item = aiSuggestedItems[index];
       if (item) {
         fillFormWithSuggestion(item);
+        showItemEntrySection();
         btn.classList.add('used');
       }
     });
@@ -1146,26 +1154,182 @@ function fillFormWithSuggestion(item) {
   document.getElementById('inventory-notes').value = item.notes || '';
 }
 
-// Show inventory entry section after photo upload
-function showInventoryEntrySection(filename, boxNumber, category, file, aiItems = null) {
-  currentPhotoContext = { filename, boxNumber, category };
+// Show item entry section
+function showItemEntrySection() {
+  document.getElementById('item-entry-section').style.display = 'block';
+}
 
-  document.getElementById('photo-upload-section').style.display = 'none';
-  document.getElementById('inventory-entry-section').style.display = 'block';
+// Add item to pending list
+function addItemToPending() {
+  const itemName = document.getElementById('inventory-item').value.trim();
+  if (!itemName) return false;
 
-  // Show photo preview in inventory section
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    document.getElementById('inventory-photo-preview').innerHTML =
-      `<img src="${e.target.result}" alt="${filename}" style="max-width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 1rem;">
-       <p style="color: var(--text-muted); font-size: 0.9rem;">Photo: ${filename}</p>`;
+  const item = {
+    item: itemName,
+    brand: document.getElementById('inventory-brand').value.trim() || null,
+    model: document.getElementById('inventory-model').value.trim() || null,
+    type: document.getElementById('inventory-type').value.trim() || null,
+    notes: document.getElementById('inventory-notes').value.trim() || null
   };
-  reader.readAsDataURL(file);
 
-  // Render AI suggestions if available
-  renderAISuggestions(aiItems);
-
+  pendingItems.push(item);
+  renderPendingItems();
   clearInventoryForm();
+  updateCommitButton();
+  return true;
+}
+
+// Remove item from pending list
+function removeItemFromPending(index) {
+  pendingItems.splice(index, 1);
+  renderPendingItems();
+  updateCommitButton();
+}
+
+// Render pending items list
+function renderPendingItems() {
+  const container = document.getElementById('pending-items-list');
+  const section = document.getElementById('pending-items-section');
+
+  if (pendingItems.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = 'block';
+  container.innerHTML = pendingItems.map((item, index) => `
+    <div class="pending-item">
+      <div class="pending-item-info">
+        <div class="pending-item-name">${item.item}</div>
+        <div class="pending-item-details">${[item.brand, item.type].filter(Boolean).join(' • ') || 'No details'}</div>
+      </div>
+      <button type="button" class="pending-item-remove" data-index="${index}">&times;</button>
+    </div>
+  `).join('');
+
+  // Add remove handlers
+  container.querySelectorAll('.pending-item-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      removeItemFromPending(parseInt(btn.dataset.index));
+    });
+  });
+}
+
+// Update commit button text
+function updateCommitButton() {
+  const btn = document.getElementById('commit-all-btn');
+  const section = document.getElementById('commit-section');
+  const count = pendingItems.length;
+
+  if (currentPhotoFile) {
+    section.style.display = 'block';
+    if (count > 0) {
+      btn.textContent = `Upload Photo & Save ${count} Item${count > 1 ? 's' : ''}`;
+    } else {
+      btn.textContent = 'Upload Photo Only';
+    }
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+// Commit all: upload photo and save all pending items
+async function commitAll() {
+  if (!currentPhotoFile) return;
+
+  const statusEl = document.getElementById('commit-status');
+  const commitBtn = document.getElementById('commit-all-btn');
+
+  commitBtn.disabled = true;
+  statusEl.textContent = 'Uploading photo...';
+  statusEl.className = 'settings-status';
+
+  try {
+    // Upload photo first
+    const result = await uploadPhoto(currentPhotoFile, currentBoxNumber, currentCategory);
+
+    // Add to local photoSets
+    photoSets.push({
+      file: result.filename,
+      box: parseInt(result.boxNumber),
+      view: result.viewLetter,
+      category: currentCategory
+    });
+    renderPhotoGrid();
+
+    // Save all pending items
+    if (pendingItems.length > 0) {
+      statusEl.textContent = `Saving ${pendingItems.length} item(s)...`;
+
+      // Get current inventory from GitHub
+      const fileInfo = await getFileFromGitHub('data/inventory.json');
+      const currentInventory = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+
+      // Generate IDs and add items
+      const photoSet = result.filename.replace('.jpg', '');
+      let sequence = 1;
+
+      // Find max existing sequence for this photoSet
+      currentInventory.forEach(item => {
+        if (item.id && item.id.startsWith(photoSet)) {
+          const existingSeq = parseInt(item.id.slice(photoSet.length)) || 0;
+          if (existingSeq >= sequence) {
+            sequence = existingSeq + 1;
+          }
+        }
+      });
+
+      // Add pending items with generated IDs
+      const newItems = pendingItems.map(item => ({
+        id: `${photoSet}${sequence++}`,
+        category: currentCategory,
+        photoSet: photoSet,
+        ...item
+      }));
+
+      currentInventory.push(...newItems);
+
+      // Save to GitHub
+      const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentInventory, null, 2))));
+      const pat = getGitHubPAT();
+      const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/inventory.json`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `token ${pat}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: `Add ${result.filename} with ${newItems.length} item(s)`,
+          content: updatedContent,
+          sha: fileInfo.sha
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save inventory');
+      }
+
+      // Update local inventory
+      inventory.push(...newItems);
+    }
+
+    statusEl.textContent = `Done! Uploaded ${result.filename}${pendingItems.length > 0 ? ` with ${pendingItems.length} item(s)` : ''}`;
+    statusEl.className = 'settings-status success';
+
+    // Close modal after delay
+    setTimeout(() => {
+      resetPhotoModal();
+      document.getElementById('add-photo-modal').classList.remove('active');
+    }, 1500);
+
+  } catch (err) {
+    console.error('Commit error:', err);
+    statusEl.textContent = `Error: ${err.message}`;
+    statusEl.className = 'settings-status error';
+    commitBtn.disabled = false;
+  }
 }
 
 // Clear inventory form fields
@@ -1175,7 +1339,6 @@ function clearInventoryForm() {
   document.getElementById('inventory-model').value = '';
   document.getElementById('inventory-type').value = '';
   document.getElementById('inventory-notes').value = '';
-  document.getElementById('inventory-status').textContent = '';
 }
 
 // Generate next inventory ID for a photo
@@ -1240,14 +1403,27 @@ async function saveInventoryItemToGitHub(newItem) {
 
 // Reset photo modal to initial state
 function resetPhotoModal() {
-  document.getElementById('photo-upload-section').style.display = 'block';
-  document.getElementById('inventory-entry-section').style.display = 'none';
+  // Reset sections visibility
+  document.getElementById('photo-select-section').style.display = 'block';
+  document.getElementById('item-entry-section').style.display = 'none';
+  document.getElementById('pending-items-section').style.display = 'none';
+  document.getElementById('commit-section').style.display = 'none';
+
+  // Reset form inputs
   document.getElementById('photo-file-input').value = '';
   document.getElementById('photo-preview').innerHTML = '';
-  document.getElementById('upload-photo-btn').disabled = true;
-  document.getElementById('upload-status').textContent = '';
+  document.getElementById('ai-suggestions').innerHTML = '';
+  document.getElementById('analyze-status').textContent = '';
+  document.getElementById('commit-status').textContent = '';
+  document.getElementById('pending-items-list').innerHTML = '';
+
+  // Clear form and state
   clearInventoryForm();
-  currentPhotoContext = null;
+  currentPhotoFile = null;
+  currentBoxNumber = null;
+  currentCategory = null;
+  pendingItems = [];
+  aiSuggestedItems = [];
 }
 
 // Setup settings event listeners
@@ -1312,133 +1488,80 @@ function setupSettingsEventListeners() {
       settingsModal.classList.add('active');
       return;
     }
-    // Reset the form
-    document.getElementById('photo-file-input').value = '';
-    document.getElementById('photo-preview').innerHTML = '';
-    document.getElementById('upload-photo-btn').disabled = true;
-    document.getElementById('upload-status').textContent = '';
+    resetPhotoModal();
     addPhotoModal.classList.add('active');
   });
 
-  // File input change - show preview
-  document.getElementById('photo-file-input').addEventListener('change', (e) => {
+  // File input change - show preview and trigger AI analysis
+  document.getElementById('photo-file-input').addEventListener('change', async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        document.getElementById('photo-preview').innerHTML =
-          `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;">`;
-        document.getElementById('upload-photo-btn').disabled = false;
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  // Upload photo button
-  document.getElementById('upload-photo-btn').addEventListener('click', async () => {
-    const file = document.getElementById('photo-file-input').files[0];
-    const boxNumber = document.getElementById('photo-box-select').value;
-    const category = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
-    const statusEl = document.getElementById('upload-status');
-    const uploadBtn = document.getElementById('upload-photo-btn');
-
     if (!file) return;
 
-    uploadBtn.disabled = true;
-    statusEl.textContent = 'Uploading...';
-    statusEl.className = 'settings-status';
+    const statusEl = document.getElementById('analyze-status');
+    const boxNumber = document.getElementById('photo-box-select').value;
+    const category = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
 
-    try {
-      // Start AI analysis in parallel with upload (if connected to OpenRouter)
-      let aiItemsPromise = null;
-      if (isConnected()) {
-        statusEl.textContent = 'Uploading & analyzing...';
-        aiItemsPromise = analyzePhotoWithAI(file);
+    // Store context
+    currentPhotoFile = file;
+    currentBoxNumber = boxNumber;
+    currentCategory = category;
+
+    // Show preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById('photo-preview').innerHTML =
+        `<img src="${e.target.result}" alt="Preview" style="max-width: 100%; border-radius: 8px; margin-top: 1rem;">`;
+    };
+    reader.readAsDataURL(file);
+
+    // Show commit section
+    updateCommitButton();
+
+    // Trigger AI analysis if connected
+    if (isConnected()) {
+      statusEl.textContent = 'Analyzing photo with AI...';
+      statusEl.className = 'settings-status';
+
+      const aiItems = await analyzePhotoWithAI(file);
+      if (aiItems && aiItems.length > 0) {
+        statusEl.textContent = `Found ${aiItems.length} item(s)!`;
+        statusEl.className = 'settings-status success';
+        renderAISuggestions(aiItems);
+        showItemEntrySection();
+      } else {
+        statusEl.textContent = 'No items detected - add manually';
+        statusEl.className = 'settings-status';
+        showItemEntrySection();
       }
-
-      const result = await uploadPhoto(file, boxNumber, category);
-      statusEl.textContent = `Uploaded ${result.filename}!`;
-      statusEl.className = 'settings-status success';
-
-      // Add to local photoSets so it shows without refresh
-      photoSets.push({
-        file: result.filename,
-        box: parseInt(result.boxNumber),
-        view: result.viewLetter,
-        category: category
-      });
-      renderPhotoGrid();
-
-      // Wait for AI analysis to complete
-      let aiItems = null;
-      if (aiItemsPromise) {
-        statusEl.textContent = 'Analyzing photo...';
-        aiItems = await aiItemsPromise;
-        statusEl.textContent = aiItems ? `Found ${aiItems.length} item(s)!` : 'Upload complete!';
-      }
-
-      // Show inventory entry section with AI suggestions
-      setTimeout(() => {
-        showInventoryEntrySection(result.filename, boxNumber, category, file, aiItems);
-      }, 500);
-    } catch (err) {
-      console.error('Upload error:', err);
-      statusEl.textContent = `Error: ${err.message}`;
-      statusEl.className = 'settings-status error';
-      uploadBtn.disabled = false;
+    } else {
+      statusEl.textContent = 'Connect to OpenRouter for AI suggestions';
+      statusEl.className = 'settings-status';
+      showItemEntrySection();
     }
   });
 
-  // Save inventory item button
-  document.getElementById('save-inventory-btn').addEventListener('click', async () => {
-    const itemName = document.getElementById('inventory-item').value.trim();
-    const statusEl = document.getElementById('inventory-status');
-
-    if (!itemName) {
-      statusEl.textContent = 'Item name is required';
-      statusEl.className = 'settings-status error';
-      return;
-    }
-
-    if (!currentPhotoContext) {
-      statusEl.textContent = 'No photo context';
-      statusEl.className = 'settings-status error';
-      return;
-    }
-
-    statusEl.textContent = 'Saving...';
-    statusEl.className = 'settings-status';
-
-    try {
-      const newItem = {
-        id: generateInventoryId(currentPhotoContext.filename),
-        category: currentPhotoContext.category,
-        photoSet: currentPhotoContext.filename.replace('.jpg', ''),
-        item: itemName,
-        brand: document.getElementById('inventory-brand').value.trim() || null,
-        model: document.getElementById('inventory-model').value.trim() || null,
-        type: document.getElementById('inventory-type').value.trim() || null,
-        notes: document.getElementById('inventory-notes').value.trim() || null
-      };
-
-      await saveInventoryItemToGitHub(newItem);
-      statusEl.textContent = `Saved: ${itemName}`;
-      statusEl.className = 'settings-status success';
-    } catch (err) {
-      console.error('Save error:', err);
-      statusEl.textContent = `Error: ${err.message}`;
-      statusEl.className = 'settings-status error';
+  // Update context when box changes
+  document.getElementById('photo-box-select').addEventListener('change', () => {
+    if (currentPhotoFile) {
+      currentBoxNumber = document.getElementById('photo-box-select').value;
+      currentCategory = document.getElementById('photo-box-select').selectedOptions[0].text.split(' - ')[1] || 'Uncategorized';
     }
   });
 
-  // Add another item button
-  document.getElementById('add-another-btn').addEventListener('click', () => {
-    clearInventoryForm();
-    document.getElementById('inventory-item').focus();
+  // Add item to pending list button
+  document.getElementById('add-item-btn').addEventListener('click', () => {
+    if (addItemToPending()) {
+      document.getElementById('inventory-item').focus();
+    }
   });
 
-  // Done button
-  document.getElementById('done-inventory-btn').addEventListener('click', () => {
+  // Commit all button
+  document.getElementById('commit-all-btn').addEventListener('click', () => {
+    commitAll();
+  });
+
+  // Cancel button
+  document.getElementById('cancel-btn').addEventListener('click', () => {
     resetPhotoModal();
     addPhotoModal.classList.remove('active');
   });
