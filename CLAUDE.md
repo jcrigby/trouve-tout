@@ -129,15 +129,31 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 1. Claude can only push to branches matching `claude/*-{sessionId}` pattern
 2. A GitHub Action auto-merges `claude/ship-**` branches to `main`
 3. GitHub Pages deploys from `main`
-4. Non-ship branches (e.g., `claude/explore-*`) do NOT auto-merge (for testing)
+4. Non-ship branches (e.g., `claude/build-*`) do NOT auto-merge (for testing)
 
-### Branch Naming
-- `claude/ship-{description}-{sessionId}` — auto-merges to main
-- `claude/{description}-{sessionId}` — does NOT auto-merge (feature branches)
+### Branch Naming Convention
+
+**To deploy changes:** Use `claude/ship-{description}-{sessionId}`
+- Example: `claude/ship-fix-photos-abc123`
+- The GitHub Action triggers on push and auto-merges to `main`
+- GitHub Pages then deploys automatically
+
+**For work-in-progress:** Use `claude/{description}-{sessionId}` (no `ship-` prefix)
+- Example: `claude/build-feature-abc123`
+- These branches will NOT auto-merge
+- Use for testing or when changes aren't ready to deploy
+
+### Deploying Changes
+When ready to deploy, always push to a `ship` branch:
+```bash
+git checkout -b claude/ship-{description}-{sessionId}
+git push -u origin claude/ship-{description}-{sessionId}
+```
 
 ### Limitations
 - Claude cannot push directly to `main` (403 forbidden)
 - Must use `claude/ship-*` branch for auto-deploy
+- The workflow uses `--ff-only` first, falls back to merge commit if needed
 
 ## External Integrations
 
