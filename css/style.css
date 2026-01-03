@@ -347,6 +347,22 @@ header h1 {
   color: var(--text-primary);
 }
 
+.inventory-list ul {
+  list-style: none;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+}
+
+.inventory-list li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inventory-list li:last-child {
+  border-bottom: none;
+}
+
 /* No results */
 .no-results {
   text-align: center;

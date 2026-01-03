@@ -244,10 +244,10 @@ function renderInventoryList(items) {
 
   const itemList = items.map(item => {
     const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
-    return item.item + brand;
-  }).join(', ');
+    return `<li>${item.item}${brand}</li>`;
+  }).join('');
 
-  return `<div class="inventory-list"><p>${itemList}</p></div>`;
+  return `<div class="inventory-list"><ul>${itemList}</ul></div>`;
 }
 
 // Show photo modal with box number
