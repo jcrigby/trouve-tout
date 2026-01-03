@@ -163,6 +163,47 @@ function setupEventListeners() {
     }
   });
 
+  // Delete photo button
+  document.getElementById('delete-photo-btn').addEventListener('click', async () => {
+    if (!isGitHubConfigured()) {
+      alert('Please configure your GitHub token in Settings first');
+      return;
+    }
+
+    const photo = photoSets[currentPhotoIndex];
+    if (!photo) return;
+
+    if (!confirm(`Delete ${photo.file}? This cannot be undone.`)) {
+      return;
+    }
+
+    const statusEl = document.getElementById('delete-status');
+    const deleteBtn = document.getElementById('delete-photo-btn');
+
+    deleteBtn.disabled = true;
+    statusEl.textContent = 'Deleting...';
+    statusEl.className = 'settings-status';
+
+    try {
+      await deletePhoto(photo.file);
+      statusEl.textContent = 'Deleted!';
+      statusEl.className = 'settings-status success';
+
+      // Close modal and refresh grid
+      setTimeout(() => {
+        photoModal.classList.remove('active');
+        statusEl.textContent = '';
+        deleteBtn.disabled = false;
+        renderPhotoGrid();
+      }, 1000);
+    } catch (err) {
+      console.error('Delete error:', err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'settings-status error';
+      deleteBtn.disabled = false;
+    }
+  });
+
   // Show all inventory button
   document.getElementById('show-all-btn').addEventListener('click', () => {
     showAllInventory();
@@ -797,6 +838,89 @@ async function uploadPhoto(file, boxNumber, category) {
   await updatePhotoSetsOnGitHub(newEntry);
 
   return { filename, boxNumber, viewLetter };
+}
+
+// Delete a file from GitHub
+async function deleteFileFromGitHub(path) {
+  const pat = getGitHubPAT();
+  if (!pat) {
+    throw new Error('GitHub PAT not configured');
+  }
+
+  // Get file info to get SHA
+  const fileInfo = await getFileFromGitHub(path);
+
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: `Delete ${path}`,
+      sha: fileInfo.sha
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || `GitHub API error: ${response.status}`);
+  }
+}
+
+// Remove a photo from photosets.json on GitHub
+async function removeFromPhotoSetsOnGitHub(filename) {
+  const pat = getGitHubPAT();
+  if (!pat) {
+    throw new Error('GitHub PAT not configured');
+  }
+
+  // Get current photosets.json
+  const fileInfo = await getFileFromGitHub('data/photosets.json');
+  const currentContent = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+
+  // Remove the entry
+  const updatedContent = currentContent.filter(p => p.file !== filename);
+
+  // Update on GitHub
+  const encodedContent = btoa(unescape(encodeURIComponent(JSON.stringify(updatedContent, null, 2))));
+
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/photosets.json`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: `Remove ${filename} from photosets`,
+      content: encodedContent,
+      sha: fileInfo.sha
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update photosets.json');
+  }
+}
+
+// Delete photo (image + photosets entry)
+async function deletePhoto(filename) {
+  // Delete the image file
+  await deleteFileFromGitHub(`images/${filename}`);
+
+  // Remove from photosets.json
+  await removeFromPhotoSetsOnGitHub(filename);
+
+  // Update local photoSets array
+  const index = photoSets.findIndex(p => p.file === filename);
+  if (index !== -1) {
+    photoSets.splice(index, 1);
+  }
 }
 
 // Current photo context for inventory entry
