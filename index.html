@@ -17,6 +17,7 @@
   <nav class="mode-tabs">
     <button class="tab active" data-mode="photos">Browse Photos</button>
     <button class="tab" data-mode="search">Text Search</button>
+    <button class="tab" data-mode="ask-ai">Ask AI</button>
   </nav>
 
   <main>
@@ -40,6 +41,24 @@
         </select>
       </div>
       <div id="results"></div>
+    </section>
+
+    <!-- Ask AI Mode -->
+    <section id="ask-ai-mode" class="mode-content">
+      <div id="ai-not-connected">
+        <p class="instructions">Ask questions about your inventory in plain English</p>
+        <p class="ai-examples">"Where's my belt sander?" • "What nailers do I have?" • "Show me everything cordless"</p>
+        <button class="action-btn" id="connect-openrouter-btn">Connect with OpenRouter</button>
+        <p class="ai-note">Requires an OpenRouter account (free to sign up)</p>
+      </div>
+      <div id="ai-connected" style="display: none;">
+        <div class="search-box">
+          <input type="text" id="ai-input" placeholder="Ask about your tools..." autocomplete="off">
+        </div>
+        <button class="action-btn" id="ai-ask-btn">Ask</button>
+        <div id="ai-response"></div>
+        <button class="action-btn secondary" id="ai-disconnect-btn">Disconnect</button>
+      </div>
     </section>
   </main>
 

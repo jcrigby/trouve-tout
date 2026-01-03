@@ -19,6 +19,12 @@ let currentPhotoIndex = 0;
 let touchStartX = 0;
 let touchEndX = 0;
 
+// OpenRouter OAuth config
+const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
+const OPENROUTER_TOKEN_URL = 'https://openrouter.ai/api/v1/auth/keys';
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const CALLBACK_URL = window.location.origin + window.location.pathname;
+
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
 const searchInput = document.getElementById('search-input');
@@ -35,7 +41,22 @@ async function init() {
   renderPhotoGrid();
   populateCategories();
   setupEventListeners();
+  setupAIEventListeners();
   registerServiceWorker();
+
+  // Handle OAuth callback if returning from OpenRouter
+  const callbackHandled = await handleOAuthCallback();
+  if (callbackHandled) {
+    // Switch to Ask AI tab after successful connection
+    tabs.forEach(t => t.classList.remove('active'));
+    document.querySelector('[data-mode="ask-ai"]').classList.add('active');
+    modeContents.forEach(content => {
+      content.classList.toggle('active', content.id === 'ask-ai-mode');
+    });
+  }
+
+  // Update AI UI based on connection status
+  updateAIConnectionUI();
 }
 
 // Load inventory data
@@ -417,6 +438,195 @@ function debounce(fn, delay) {
     clearTimeout(timeout);
     timeout = setTimeout(() => fn.apply(this, args), delay);
   };
+}
+
+// ==================== OpenRouter OAuth PKCE ====================
+
+// Generate random code verifier for PKCE
+function generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode.apply(null, array))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+// Generate code challenge from verifier (S256)
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(hash)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+}
+
+// Start OAuth flow - redirect to OpenRouter
+async function startOAuthFlow() {
+  const codeVerifier = generateCodeVerifier();
+  sessionStorage.setItem('openrouter_code_verifier', codeVerifier);
+
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  const authUrl = `${OPENROUTER_AUTH_URL}?callback_url=${encodeURIComponent(CALLBACK_URL)}&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+  window.location.href = authUrl;
+}
+
+// Handle OAuth callback - exchange code for API key
+async function handleOAuthCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+
+  if (!code) return false;
+
+  const codeVerifier = sessionStorage.getItem('openrouter_code_verifier');
+  if (!codeVerifier) {
+    console.error('No code verifier found');
+    return false;
+  }
+
+  try {
+    const response = await fetch(OPENROUTER_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        code_verifier: codeVerifier,
+        code_challenge_method: 'S256'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Token exchange failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    if (data.key) {
+      localStorage.setItem('openrouter_key', data.key);
+      sessionStorage.removeItem('openrouter_code_verifier');
+      // Clean up URL
+      window.history.replaceState({}, document.title, CALLBACK_URL);
+      return true;
+    }
+  } catch (err) {
+    console.error('OAuth callback error:', err);
+  }
+
+  return false;
+}
+
+// Check if connected to OpenRouter
+function isConnected() {
+  return !!localStorage.getItem('openrouter_key');
+}
+
+// Disconnect from OpenRouter
+function disconnect() {
+  localStorage.removeItem('openrouter_key');
+  updateAIConnectionUI();
+}
+
+// Update AI section UI based on connection status
+function updateAIConnectionUI() {
+  const notConnected = document.getElementById('ai-not-connected');
+  const connected = document.getElementById('ai-connected');
+
+  if (isConnected()) {
+    notConnected.style.display = 'none';
+    connected.style.display = 'block';
+  } else {
+    notConnected.style.display = 'block';
+    connected.style.display = 'none';
+  }
+}
+
+// Ask AI about inventory
+async function askAI(question) {
+  const apiKey = localStorage.getItem('openrouter_key');
+  if (!apiKey) {
+    return 'Not connected to OpenRouter. Please connect first.';
+  }
+
+  const responseDiv = document.getElementById('ai-response');
+  responseDiv.innerHTML = '<p class="ai-thinking">Thinking...</p>';
+
+  // Build context with inventory
+  const inventoryContext = JSON.stringify(inventory, null, 2);
+
+  const systemPrompt = `You are a helpful assistant for a tool inventory app called Trouve-Tout.
+The user has tools stored in numbered boxes. Here is their complete inventory:
+
+${inventoryContext}
+
+Answer questions about their inventory conversationally and helpfully.
+When mentioning items, include the box number so they can find them.
+Keep answers concise but friendly.`;
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': CALLBACK_URL,
+        'X-Title': 'Trouve-Tout'
+      },
+      body: JSON.stringify({
+        model: 'anthropic/claude-3-haiku',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: question }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error?.message || `API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const answer = data.choices?.[0]?.message?.content || 'No response received';
+    responseDiv.innerHTML = `<div class="ai-answer">${answer}</div>`;
+    return answer;
+  } catch (err) {
+    console.error('AI query error:', err);
+    responseDiv.innerHTML = `<p class="ai-error">Error: ${err.message}</p>`;
+    return null;
+  }
+}
+
+// Setup AI event listeners
+function setupAIEventListeners() {
+  // Connect button
+  document.getElementById('connect-openrouter-btn').addEventListener('click', () => {
+    startOAuthFlow();
+  });
+
+  // Disconnect button
+  document.getElementById('ai-disconnect-btn').addEventListener('click', () => {
+    disconnect();
+  });
+
+  // Ask button
+  document.getElementById('ai-ask-btn').addEventListener('click', () => {
+    const input = document.getElementById('ai-input');
+    if (input.value.trim()) {
+      askAI(input.value.trim());
+    }
+  });
+
+  // Enter key on input
+  document.getElementById('ai-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      const input = document.getElementById('ai-input');
+      if (input.value.trim()) {
+        askAI(input.value.trim());
+      }
+    }
+  });
 }
 
 // Register service worker

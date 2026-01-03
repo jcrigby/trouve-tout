@@ -394,6 +394,73 @@ header h1 {
   padding: 2rem;
 }
 
+/* Ask AI Mode */
+#ask-ai-mode {
+  text-align: center;
+}
+
+.ai-examples {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+.ai-note {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+#ai-input {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#ai-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#ai-input::placeholder {
+  color: var(--text-secondary);
+}
+
+#ai-response {
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.ai-thinking {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+}
+
+.ai-answer {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 1rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ai-error {
+  color: var(--accent);
+  text-align: center;
+}
+
+#ai-disconnect-btn {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+}
+
 /* Responsive */
 @media (min-width: 600px) {
   .photo-grid {
