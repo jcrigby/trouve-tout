@@ -799,6 +799,110 @@ async function uploadPhoto(file, boxNumber, category) {
   return { filename, boxNumber, viewLetter };
 }
 
+// Current photo context for inventory entry
+let currentPhotoContext = null;
+
+// Show inventory entry section after photo upload
+function showInventoryEntrySection(filename, boxNumber, category, file) {
+  currentPhotoContext = { filename, boxNumber, category };
+
+  document.getElementById('photo-upload-section').style.display = 'none';
+  document.getElementById('inventory-entry-section').style.display = 'block';
+
+  // Show photo preview in inventory section
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    document.getElementById('inventory-photo-preview').innerHTML =
+      `<img src="${e.target.result}" alt="${filename}" style="max-width: 100%; max-height: 150px; border-radius: 8px; margin-bottom: 1rem;">
+       <p style="color: var(--text-muted); font-size: 0.9rem;">Photo: ${filename}</p>`;
+  };
+  reader.readAsDataURL(file);
+
+  clearInventoryForm();
+}
+
+// Clear inventory form fields
+function clearInventoryForm() {
+  document.getElementById('inventory-item').value = '';
+  document.getElementById('inventory-brand').value = '';
+  document.getElementById('inventory-model').value = '';
+  document.getElementById('inventory-type').value = '';
+  document.getElementById('inventory-notes').value = '';
+  document.getElementById('inventory-status').textContent = '';
+}
+
+// Generate next inventory ID for a photo
+function generateInventoryId(photoSet) {
+  // ID format: {box}{view}{sequence} e.g., "5a1", "5a2"
+  const baseId = photoSet.replace('.jpg', '');
+  let sequence = 1;
+
+  // Find existing items with same base ID
+  inventoryData.forEach(item => {
+    if (item.id && item.id.startsWith(baseId)) {
+      const existingSeq = parseInt(item.id.slice(baseId.length)) || 0;
+      if (existingSeq >= sequence) {
+        sequence = existingSeq + 1;
+      }
+    }
+  });
+
+  return `${baseId}${sequence}`;
+}
+
+// Save inventory item to GitHub
+async function saveInventoryItemToGitHub(newItem) {
+  const pat = getGitHubPAT();
+  if (!pat) {
+    throw new Error('GitHub PAT not configured');
+  }
+
+  // Get current inventory.json
+  const fileInfo = await getFileFromGitHub('data/inventory.json');
+  const currentContent = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+
+  // Add new item
+  currentContent.push(newItem);
+
+  // Update on GitHub
+  const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(currentContent, null, 2))));
+
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/inventory.json`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: `Add inventory item: ${newItem.item}`,
+      content: updatedContent,
+      sha: fileInfo.sha
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to update inventory.json');
+  }
+
+  // Update local data
+  inventoryData.push(newItem);
+}
+
+// Reset photo modal to initial state
+function resetPhotoModal() {
+  document.getElementById('photo-upload-section').style.display = 'block';
+  document.getElementById('inventory-entry-section').style.display = 'none';
+  document.getElementById('photo-file-input').value = '';
+  document.getElementById('photo-preview').innerHTML = '';
+  document.getElementById('upload-photo-btn').disabled = true;
+  document.getElementById('upload-status').textContent = '';
+  clearInventoryForm();
+  currentPhotoContext = null;
+}
+
 // Setup settings event listeners
 function setupSettingsEventListeners() {
   const settingsModal = document.getElementById('settings-modal');
@@ -886,10 +990,10 @@ function setupSettingsEventListeners() {
       });
       renderPhotoGrid();
 
-      // Close modal after short delay
+      // Show inventory entry section
       setTimeout(() => {
-        addPhotoModal.classList.remove('active');
-      }, 1500);
+        showInventoryEntrySection(result.filename, boxNumber, category, file);
+      }, 1000);
     } catch (err) {
       console.error('Upload error:', err);
       statusEl.textContent = `Error: ${err.message}`;
@@ -898,13 +1002,73 @@ function setupSettingsEventListeners() {
     }
   });
 
+  // Save inventory item button
+  document.getElementById('save-inventory-btn').addEventListener('click', async () => {
+    const itemName = document.getElementById('inventory-item').value.trim();
+    const statusEl = document.getElementById('inventory-status');
+
+    if (!itemName) {
+      statusEl.textContent = 'Item name is required';
+      statusEl.className = 'settings-status error';
+      return;
+    }
+
+    if (!currentPhotoContext) {
+      statusEl.textContent = 'No photo context';
+      statusEl.className = 'settings-status error';
+      return;
+    }
+
+    statusEl.textContent = 'Saving...';
+    statusEl.className = 'settings-status';
+
+    try {
+      const newItem = {
+        id: generateInventoryId(currentPhotoContext.filename),
+        category: currentPhotoContext.category,
+        photoSet: currentPhotoContext.filename.replace('.jpg', ''),
+        item: itemName,
+        brand: document.getElementById('inventory-brand').value.trim() || null,
+        model: document.getElementById('inventory-model').value.trim() || null,
+        type: document.getElementById('inventory-type').value.trim() || null,
+        notes: document.getElementById('inventory-notes').value.trim() || null
+      };
+
+      await saveInventoryItemToGitHub(newItem);
+      statusEl.textContent = `Saved: ${itemName}`;
+      statusEl.className = 'settings-status success';
+    } catch (err) {
+      console.error('Save error:', err);
+      statusEl.textContent = `Error: ${err.message}`;
+      statusEl.className = 'settings-status error';
+    }
+  });
+
+  // Add another item button
+  document.getElementById('add-another-btn').addEventListener('click', () => {
+    clearInventoryForm();
+    document.getElementById('inventory-item').focus();
+  });
+
+  // Done button
+  document.getElementById('done-inventory-btn').addEventListener('click', () => {
+    resetPhotoModal();
+    addPhotoModal.classList.remove('active');
+  });
+
   // Close buttons for new modals
   [settingsModal, addPhotoModal].forEach(modal => {
     modal.querySelector('.close').addEventListener('click', () => {
+      if (modal === addPhotoModal) {
+        resetPhotoModal();
+      }
       modal.classList.remove('active');
     });
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
+        if (modal === addPhotoModal) {
+          resetPhotoModal();
+        }
         modal.classList.remove('active');
       }
     });
