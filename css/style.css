@@ -262,7 +262,7 @@ header h1 {
 }
 
 #modal-image {
-  touch-action: pan-y;
+  touch-action: none;
   cursor: grab;
   user-select: none;
   transition: opacity 0.15s ease-out;
