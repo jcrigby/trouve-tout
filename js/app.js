@@ -16,6 +16,9 @@ const photoSets = [
 
 let inventory = [];
 let currentBoxNumber = null;
+let currentPhotoIndex = 0;
+let touchStartX = 0;
+let touchEndX = 0;
 
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
@@ -137,6 +140,29 @@ function setupEventListeners() {
   document.getElementById('show-all-btn').addEventListener('click', () => {
     showAllInventory();
   });
+
+  // Swipe navigation for photo modal
+  const modalContent = photoModal.querySelector('.modal-content');
+  modalContent.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, { passive: true });
+
+  modalContent.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+  }, { passive: true });
+
+  // Keyboard navigation for photo modal
+  document.addEventListener('keydown', (e) => {
+    if (!photoModal.classList.contains('active')) return;
+    if (e.key === 'ArrowLeft') {
+      showPrevPhoto();
+    } else if (e.key === 'ArrowRight') {
+      showNextPhoto();
+    } else if (e.key === 'Escape') {
+      photoModal.classList.remove('active');
+    }
+  });
 }
 
 // Show contents of a specific box
@@ -192,6 +218,7 @@ function renderInventoryList(items) {
 
 // Show photo modal with box number
 function showPhotoModal(file, box, category) {
+  currentPhotoIndex = photoSets.findIndex(p => p.file === file);
   currentBoxNumber = box;
   document.getElementById('modal-box-number').textContent = `Box ${box}`;
   document.getElementById('modal-image').src = `images/${file}`;
@@ -200,6 +227,47 @@ function showPhotoModal(file, box, category) {
   const existingList = photoModal.querySelector('.inventory-list');
   if (existingList) existingList.remove();
   photoModal.classList.add('active');
+}
+
+// Navigate to next photo
+function showNextPhoto() {
+  currentPhotoIndex = (currentPhotoIndex + 1) % photoSets.length;
+  const photo = photoSets[currentPhotoIndex];
+  currentBoxNumber = photo.box;
+  document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
+  document.getElementById('modal-image').src = `images/${photo.file}`;
+  document.getElementById('modal-category').textContent = photo.category;
+  // Clear inventory list when navigating
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (existingList) existingList.remove();
+}
+
+// Navigate to previous photo
+function showPrevPhoto() {
+  currentPhotoIndex = (currentPhotoIndex - 1 + photoSets.length) % photoSets.length;
+  const photo = photoSets[currentPhotoIndex];
+  currentBoxNumber = photo.box;
+  document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
+  document.getElementById('modal-image').src = `images/${photo.file}`;
+  document.getElementById('modal-category').textContent = photo.category;
+  // Clear inventory list when navigating
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (existingList) existingList.remove();
+}
+
+// Handle swipe gesture
+function handleSwipe() {
+  const swipeThreshold = 50;
+  const diff = touchStartX - touchEndX;
+  if (Math.abs(diff) > swipeThreshold) {
+    if (diff > 0) {
+      // Swipe left - next photo
+      showNextPhoto();
+    } else {
+      // Swipe right - previous photo
+      showPrevPhoto();
+    }
+  }
 }
 
 // Show item detail modal
