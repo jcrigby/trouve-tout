@@ -206,7 +206,7 @@ function showAllInventory() {
 
   searchInput.value = '';
   categoryFilter.value = '';
-  renderResults(inventory);
+  renderResults(inventory, true);
 }
 
 // Show idiot check - things that don't belong together
@@ -363,14 +363,39 @@ function performSearch() {
 }
 
 // Render search results
-function renderResults(items) {
+function renderResults(items, grouped = false) {
   if (items.length === 0) {
     results.innerHTML = '<p class="no-results">No items found</p>';
     return;
   }
 
+  if (grouped) {
+    // Group by box number
+    const byBox = {};
+    items.forEach(item => {
+      const box = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+      if (!byBox[box]) byBox[box] = [];
+      byBox[box].push(item);
+    });
+
+    results.innerHTML = Object.keys(byBox).sort((a, b) => a - b).map(box => {
+      const boxItems = byBox[box];
+      const itemList = boxItems.map(item => {
+        const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
+        return `<li>${item.item}${brand}</li>`;
+      }).join('');
+      return `
+        <div class="box-group">
+          <h3>Box ${box}</h3>
+          <ul>${itemList}</ul>
+        </div>
+      `;
+    }).join('');
+    return;
+  }
+
   results.innerHTML = items.map(item => {
-    const box = item.photoSet.split('/')[0].replace(/[ab]/g, '');
+    const box = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
     return `
       <div class="result-item" data-id="${item.id}">
         <h3>${item.item}</h3>

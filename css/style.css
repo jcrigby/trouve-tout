@@ -363,6 +363,30 @@ header h1 {
   border-bottom: none;
 }
 
+/* Box groups for full inventory */
+.box-group {
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.box-group h3 {
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--accent);
+}
+
+.box-group ul {
+  list-style: none;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.box-group li {
+  padding: 0.2rem 0;
+}
+
 /* No results */
 .no-results {
   text-align: center;
