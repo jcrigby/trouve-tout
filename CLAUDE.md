@@ -11,18 +11,27 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Static hosting on GitHub Pages
 - PWA with service worker for offline use
 - Single page app
+- OpenRouter API for AI queries (OAuth PKCE flow)
+- GitHub API for photo/inventory management (via PAT)
 
-## Two Search Modes
+## Three Modes
 
 ### 1. Browse Photos (Visual Grep)
 - Shows all box photos in a grid
-- Tap a photo to see the box number (extracted from filename)
-- User visually scans photos to find their item
+- Tap a photo to see the box number and category
+- Swipe left/right to navigate between photos
+- "Show Box Contents" button shows inventory for that box
+- "Delete Photo" button removes photo (requires GitHub PAT)
 
 ### 2. Text Search
 - Type in search box to filter items by item name, brand, model, notes, or type
 - Optional category dropdown filter
 - Tap a result to see item details and associated photos
+
+### 3. Ask AI
+- Natural language queries about inventory
+- Uses OpenRouter OAuth PKCE (no backend needed)
+- Connects to Claude Haiku via OpenRouter API
 
 ## Data
 
@@ -34,7 +43,7 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 {
   "id": "1a1",
   "category": "Nail Guns & Fasteners",
-  "photoSet": "1a/1b",
+  "photoSet": "1a",
   "item": "15ga Finish Nailer",
   "brand": "Metabo HPT",
   "model": "NT 65MA4",
@@ -43,30 +52,49 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 }
 ```
 
+### PhotoSets File
+`data/photosets.json` — array of photo metadata (loaded at runtime)
+
+```json
+{
+  "file": "1a.jpg",
+  "box": 1,
+  "view": "a",
+  "category": "Nail Guns & Fasteners"
+}
+```
+
 ### ID Convention
 - Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")
-- When adding new photos (e.g., 1c.jpg), use IDs like "1c1", "1c2"
+- Auto-generated when adding items via the app
 
 ### Categories (by box)
-1. **Box 1** - Nail Guns & Fasteners (photoSet: 1a/1b or 1c, etc.)
-2. **Box 2** - Hand Tools & Misc (photoSet: 2a/2b)
-3. **Box 3** - Sanders & Grinder (photoSet: 3a/3b)
-4. **Box 4** - Saws & Grinders (photoSet: 4a/4b)
+1. **Box 1** - Nail Guns & Fasteners
+2. **Box 2** - Hand Tools & Misc
+3. **Box 3** - Sanders & Grinder
+4. **Box 4** - Saws & Grinders
+5. **Box 5** - (New Box)
 
 ## Images
 
 ### Naming Convention
 - Format: `{box}{view}.jpg` (e.g., 1a.jpg, 1b.jpg, 1c.jpg)
-- **Box number** = the number (1, 2, 3, 4)
+- **Box number** = the number (1, 2, 3, 4, 5)
 - **View letter** = different angles/perspectives (a, b, c, etc.)
-- Each box can have multiple photos from different perspectives
+- Auto-assigned when uploading via the app
 
-### Current Images
-Located in `images/` folder. When adding new photos:
-1. Add the image file (e.g., `images/1c.jpg`)
-2. Add entry to `photoSets` array in `js/app.js`
-3. Add to `ASSETS` array in `sw.js`
-4. Bump `CACHE_NAME` version in `sw.js`
+### Adding Photos via App (Preferred)
+1. Configure GitHub PAT in Settings (gear icon)
+2. Tap "+ Add Photo" button
+3. Select box number, choose photo
+4. Optionally add inventory items
+5. Photo and metadata are committed directly to GitHub
+
+### Deleting Photos via App
+1. Tap photo to open modal
+2. Tap "Delete Photo" button
+3. Confirm deletion
+4. Removes image file and photosets.json entry
 
 ## File Structure
 ```
@@ -74,46 +102,54 @@ Located in `images/` folder. When adding new photos:
 ├── index.html
 ├── manifest.json
 ├── sw.js                    # Service worker
+├── README.md                # User documentation
+├── CLAUDE.md                # Developer documentation (this file)
 ├── .github/
 │   └── workflows/
 │       └── auto-merge-claude.yml
 ├── css/
 │   └── style.css
 ├── js/
-│   └── app.js               # Main app logic, photoSets array
+│   └── app.js               # Main app logic
 ├── data/
-│   └── inventory.json       # Inventory data
+│   ├── inventory.json       # Inventory items
+│   └── photosets.json       # Photo metadata
 └── images/
-    ├── 1a.jpg, 1b.jpg          # Box 1 photos
-    ├── 2a.jpg, 2b.jpg, 2c.jpg  # Box 2 photos
-    ├── 3a.jpg, 3b.jpg          # Box 3 photos
-    └── 4a.jpg, 4b.jpg          # Box 4 photos
+    └── {box}{view}.jpg      # Photo files
 ```
 
 ## Service Worker Caching Strategy
-- **inventory.json**: Network-first (always fetches fresh data when online, falls back to cache offline)
-- **Other assets**: Stale-while-revalidate (serves cached immediately, updates in background)
-- Bump `CACHE_NAME` version when adding new assets to force cache refresh
+- **inventory.json, photosets.json**: Network-first (fetches fresh when online, cache offline)
+- **Other assets**: Stale-while-revalidate (serves cached, updates in background)
+- Bump `CACHE_NAME` version in sw.js when changing code
 
 ## Claude Workflow (Auto-Deploy)
 
 ### How It Works
 1. Claude can only push to branches matching `claude/*-{sessionId}` pattern
-2. A GitHub Action (`.github/workflows/auto-merge-claude.yml`) auto-merges any `claude/*` branch to `main`
+2. A GitHub Action auto-merges `claude/ship-**` branches to `main`
 3. GitHub Pages deploys from `main`
+4. Non-ship branches (e.g., `claude/explore-*`) do NOT auto-merge (for testing)
 
-### To Add/Update Items
-1. Edit `data/inventory.json` to add/modify items
-2. If adding new photos:
-   - Add image to `images/` folder
-   - Update `photoSets` in `js/app.js`
-   - Update `ASSETS` and bump `CACHE_NAME` in `sw.js`
-3. Commit and push to `claude/{description}-{sessionId}` branch
-4. Auto-merge workflow pushes to `main`
-5. GitHub Pages auto-deploys
+### Branch Naming
+- `claude/ship-{description}-{sessionId}` — auto-merges to main
+- `claude/{description}-{sessionId}` — does NOT auto-merge (feature branches)
 
 ### Limitations
 - Claude cannot push directly to `main` (403 forbidden)
+- Must use `claude/ship-*` branch for auto-deploy
+
+## External Integrations
+
+### OpenRouter (Ask AI)
+- OAuth PKCE flow for static sites
+- API key stored in localStorage
+- Uses Claude Haiku model
+
+### GitHub API (Photo Management)
+- Personal Access Token with `repo` scope
+- Stored in localStorage
+- Used for: upload photos, delete photos, update photosets.json, update inventory.json
 
 ## UI Notes
 - Keep it simple and fast
@@ -124,5 +160,5 @@ Located in `images/` folder. When adding new photos:
 ## Don't
 - No frameworks (React, Vue, etc.)
 - No build tools (webpack, vite, etc.)
-- No external dependencies
-- No backend
+- No external dependencies (except API calls)
+- No backend server
