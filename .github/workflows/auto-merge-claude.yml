@@ -3,7 +3,7 @@ name: Auto-merge Claude branches
 on:
   push:
     branches:
-      - 'claude/**'
+      - 'claude/ship-**'
 
 jobs:
   auto-merge:
