@@ -263,6 +263,7 @@ header h1 {
   touch-action: pan-y;
   cursor: grab;
   user-select: none;
+  transition: opacity 0.15s ease-out;
 }
 
 .modal p {

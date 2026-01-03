@@ -145,6 +145,7 @@ function setupEventListeners() {
   const modalImage = document.getElementById('modal-image');
   modalImage.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
+    touchEndX = touchStartX; // Reset to prevent accidental triggers
   }, { passive: true });
 
   modalImage.addEventListener('touchmove', (e) => {
@@ -153,6 +154,8 @@ function setupEventListeners() {
 
   modalImage.addEventListener('touchend', () => {
     handleSwipe();
+    touchStartX = 0;
+    touchEndX = 0;
   }, { passive: true });
 
   // Keyboard navigation for photo modal
@@ -235,24 +238,28 @@ function showPhotoModal(file, box, category) {
 // Navigate to next photo
 function showNextPhoto() {
   currentPhotoIndex = (currentPhotoIndex + 1) % photoSets.length;
-  const photo = photoSets[currentPhotoIndex];
-  currentBoxNumber = photo.box;
-  document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
-  document.getElementById('modal-image').src = `images/${photo.file}`;
-  document.getElementById('modal-category').textContent = photo.category;
-  // Clear inventory list when navigating
-  const existingList = photoModal.querySelector('.inventory-list');
-  if (existingList) existingList.remove();
+  updatePhotoDisplay();
 }
 
 // Navigate to previous photo
 function showPrevPhoto() {
   currentPhotoIndex = (currentPhotoIndex - 1 + photoSets.length) % photoSets.length;
+  updatePhotoDisplay();
+}
+
+// Update the photo display with fade
+function updatePhotoDisplay() {
   const photo = photoSets[currentPhotoIndex];
+  const img = document.getElementById('modal-image');
   currentBoxNumber = photo.box;
+
+  img.style.opacity = '0.5';
+  img.src = `images/${photo.file}`;
+  img.onload = () => { img.style.opacity = '1'; };
+
   document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
-  document.getElementById('modal-image').src = `images/${photo.file}`;
   document.getElementById('modal-category').textContent = photo.category;
+
   // Clear inventory list when navigating
   const existingList = photoModal.querySelector('.inventory-list');
   if (existingList) existingList.remove();
