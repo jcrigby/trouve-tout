@@ -1011,7 +1011,7 @@ async function removeFromPhotoSetsOnGitHub(filename) {
   }
 }
 
-// Delete photo (image + photosets entry)
+// Delete photo (image + photosets entry + associated inventory items)
 async function deletePhoto(filename) {
   // Delete the image file
   await deleteFileFromGitHub(`images/${filename}`);
@@ -1019,11 +1019,65 @@ async function deletePhoto(filename) {
   // Remove from photosets.json
   await removeFromPhotoSetsOnGitHub(filename);
 
+  // Remove associated inventory items
+  const photoSet = filename.replace('.jpg', '');
+  await removeInventoryItemsForPhotoSet(photoSet);
+
   // Update local photoSets array
   const index = photoSets.findIndex(p => p.file === filename);
   if (index !== -1) {
     photoSets.splice(index, 1);
   }
+}
+
+// Remove inventory items associated with a photoSet
+async function removeInventoryItemsForPhotoSet(photoSet) {
+  const pat = getGitHubPAT();
+  if (!pat) return;
+
+  // Get current inventory.json
+  const fileInfo = await getFileFromGitHub('data/inventory.json');
+  if (!fileInfo) return;
+
+  const currentContent = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
+
+  // Filter out items that reference this photoSet (exact match or as part of multi-photo set)
+  const updatedContent = currentContent.filter(item => {
+    if (!item.photoSet) return true;
+    // Check if photoSet matches exactly or is part of a slash-separated list
+    const photoSets = item.photoSet.split('/');
+    return !photoSets.includes(photoSet);
+  });
+
+  // Only update if something was removed
+  if (updatedContent.length === currentContent.length) return;
+
+  const removedCount = currentContent.length - updatedContent.length;
+
+  // Update on GitHub
+  const encodedContent = btoa(unescape(encodeURIComponent(JSON.stringify(updatedContent, null, 2))));
+
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/data/inventory.json`;
+
+  const response = await fetch(url, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${pat}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      message: `Remove ${removedCount} inventory item(s) for deleted photo ${photoSet}`,
+      content: encodedContent,
+      sha: fileInfo.sha
+    })
+  });
+
+  if (!response.ok) {
+    console.error('Failed to remove inventory items:', await response.json());
+  }
+
+  // Update local inventory array
+  inventory = updatedContent;
 }
 
 // Current photo context for dry run
