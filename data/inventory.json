@@ -330,6 +330,26 @@
     "notes": "Orange with black bristles"
   },
   {
+    "id": "2a23",
+    "category": "Hand Tools & Misc",
+    "photoSet": "2a/2b",
+    "item": "Pipe, Long",
+    "brand": null,
+    "model": null,
+    "type": "supply",
+    "notes": "Galvanized"
+  },
+  {
+    "id": "2a24",
+    "category": "Hand Tools & Misc",
+    "photoSet": "2a/2b",
+    "item": "Pipe, Short",
+    "brand": null,
+    "model": null,
+    "type": "supply",
+    "notes": "Black"
+  },
+  {
     "id": "3a1",
     "category": "Sanders & Grinder",
     "photoSet": "3a/3b",
