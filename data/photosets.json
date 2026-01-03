@@ -64,5 +64,11 @@
     "box": 4,
     "view": "b",
     "category": "Saws & Grinders"
+  },
+  {
+    "file": "1c.jpg",
+    "box": 1,
+    "view": "c",
+    "category": "Nail Guns & Fasteners"
   }
 ]
