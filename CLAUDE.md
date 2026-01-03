@@ -173,6 +173,13 @@ git push -u origin claude/ship-{description}-{sessionId}
 - Dark mode friendly (often used in garage/basement)
 - No unnecessary animations or transitions
 
+## Testing Environment
+- **Primary testing is on Chrome for iOS** (iPhone)
+- Hard refresh on iOS: Settings → Safari → Clear History and Website Data, or use "Request Desktop Site" toggle
+- Service worker updates can be stubborn on iOS - bump cache version in sw.js
+- Test touch interactions, not just click events
+- File input behaves differently on mobile (camera option appears)
+
 ## Don't
 - No frameworks (React, Vue, etc.)
 - No build tools (webpack, vite, etc.)
