@@ -165,15 +165,12 @@ function setupEventListeners() {
 
   // Delete photo button
   document.getElementById('delete-photo-btn').addEventListener('click', async () => {
-    console.log('Delete button clicked');
-
     if (!isGitHubConfigured()) {
       alert('Please configure your GitHub token in Settings first');
       return;
     }
 
     const photo = photoSets[currentPhotoIndex];
-    console.log('Current photo:', photo);
     if (!photo) return;
 
     if (!confirm(`Delete ${photo.file}? This cannot be undone.`)) {
@@ -965,7 +962,7 @@ function generateInventoryId(photoSet) {
   let sequence = 1;
 
   // Find existing items with same base ID
-  inventoryData.forEach(item => {
+  inventory.forEach(item => {
     if (item.id && item.id.startsWith(baseId)) {
       const existingSeq = parseInt(item.id.slice(baseId.length)) || 0;
       if (existingSeq >= sequence) {
@@ -1015,7 +1012,7 @@ async function saveInventoryItemToGitHub(newItem) {
   }
 
   // Update local data
-  inventoryData.push(newItem);
+  inventory.push(newItem);
 }
 
 // Reset photo modal to initial state
