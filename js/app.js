@@ -652,15 +652,29 @@ function isGitHubConfigured() {
   return !!getGitHubPAT();
 }
 
-// Get next available view letter for a box
-function getNextViewLetter(boxNumber) {
-  const existingViews = photoSets
-    .filter(p => p.box === boxNumber)
-    .map(p => p.view);
+// Check if file exists on GitHub
+async function fileExistsOnGitHub(path) {
+  const pat = getGitHubPAT();
+  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
 
+  try {
+    const response = await fetch(url, {
+      headers: { 'Authorization': `token ${pat}` }
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Get next available view letter for a box (checks GitHub)
+async function getNextViewLetter(boxNumber) {
   const alphabet = 'abcdefghijklmnopqrstuvwxyz';
+
   for (const letter of alphabet) {
-    if (!existingViews.includes(letter)) {
+    const filename = `${boxNumber}${letter}.jpg`;
+    const exists = await fileExistsOnGitHub(`images/${filename}`);
+    if (!exists) {
       return letter;
     }
   }
@@ -712,7 +726,7 @@ function fileToBase64(file) {
 
 // Upload photo to GitHub
 async function uploadPhoto(file, boxNumber) {
-  const viewLetter = getNextViewLetter(parseInt(boxNumber));
+  const viewLetter = await getNextViewLetter(parseInt(boxNumber));
   const filename = `${boxNumber}${viewLetter}.jpg`;
   const path = `images/${filename}`;
 
