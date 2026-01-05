@@ -528,5 +528,15 @@
     "model": null,
     "type": "hand tool",
     "notes": null
+  },
+  {
+    "id": "4a11",
+    "category": "Saws & Grinders",
+    "photoSet": "4a/4b",
+    "item": "Coping Saw",
+    "brand": null,
+    "model": null,
+    "type": "hand tool",
+    "notes": null
   }
 ]
