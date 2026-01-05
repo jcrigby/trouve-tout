@@ -27,7 +27,6 @@
       <p class="instructions">Tap a photo to see its box number</p>
       <button class="action-btn" id="show-all-btn">Show All Inventory</button>
       <a class="action-btn secondary" href="https://github.com/jcrigby/trouve-tout/issues/new?title=Add%20image&body=Paste%20image%20here" target="_blank">+ Add Image via GitHub</a>
-      <button class="action-btn secondary" id="add-photo-btn">+ Add Photo</button>
       <div class="photo-grid" id="photo-grid"></div>
     </section>
 
@@ -119,52 +118,6 @@
     </div>
   </div>
 
-  <!-- Add Photo Modal -->
-  <div id="add-photo-modal" class="modal">
-    <div class="modal-content">
-      <span class="close">&times;</span>
-      <h2>Add Photo</h2>
-      <div class="add-photo-section" id="photo-select-section">
-        <label for="photo-box-select">Box Number</label>
-        <select id="photo-box-select">
-          <option value="1">Box 1 - Nail Guns & Fasteners</option>
-          <option value="2">Box 2 - Hand Tools & Misc</option>
-          <option value="3">Box 3 - Sanders & Grinder</option>
-          <option value="4">Box 4 - Saws & Grinders</option>
-          <option value="5">Box 5 - (New Box)</option>
-        </select>
-        <label for="photo-file-input">Select Photo</label>
-        <input type="file" id="photo-file-input" accept="image/*">
-        <div id="photo-preview"></div>
-        <p id="analyze-status" class="settings-status"></p>
-        <div id="ai-suggestions"></div>
-      </div>
-      <div class="add-photo-section" id="item-entry-section" style="display: none;">
-        <p class="instructions">Add or edit item details:</p>
-        <label for="inventory-item">Item Name *</label>
-        <input type="text" id="inventory-item" placeholder="e.g. Belt Sander">
-        <label for="inventory-brand">Brand</label>
-        <input type="text" id="inventory-brand" placeholder="e.g. DeWalt">
-        <label for="inventory-model">Model</label>
-        <input type="text" id="inventory-model" placeholder="e.g. DW433">
-        <label for="inventory-type">Type</label>
-        <input type="text" id="inventory-type" placeholder="e.g. electric, pneumatic, hand tool">
-        <label for="inventory-notes">Notes</label>
-        <input type="text" id="inventory-notes" placeholder="e.g. In case, needs new belt">
-        <button class="action-btn secondary" id="add-item-btn">+ Add to List</button>
-      </div>
-      <div class="add-photo-section" id="pending-items-section" style="display: none;">
-        <p class="pending-items-label">Items to save:</p>
-        <div id="pending-items-list"></div>
-      </div>
-      <div class="add-photo-section" id="commit-section" style="display: none;">
-        <button class="action-btn" id="commit-all-btn">Upload Photo & Save Items</button>
-        <button class="action-btn secondary" id="cancel-btn">Cancel</button>
-        <p id="commit-status" class="settings-status"></p>
-      </div>
-    </div>
-  </div>
-
-  <script src="js/app.js?v=39"></script>
+  <script src="js/app.js?v=40"></script>
 </body>
 </html>
