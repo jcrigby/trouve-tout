@@ -538,5 +538,15 @@
     "model": null,
     "type": "hand tool",
     "notes": null
+  },
+  {
+    "id": "4a12",
+    "category": "Saws & Grinders",
+    "photoSet": "4a/4b",
+    "item": "Jig Saw",
+    "brand": "Bosch",
+    "model": null,
+    "type": "electric",
+    "notes": "Corded"
   }
 ]
