@@ -751,7 +751,10 @@ Example response:
 // Setup AI event listeners
 function setupAIEventListeners() {
   // Clear input (browser may auto-fill from history)
-  document.getElementById('ai-input').value = '';
+  const aiInput = document.getElementById('ai-input');
+  aiInput.value = '';
+  // Also clear after a delay (browser restores autofill after page load)
+  setTimeout(() => { aiInput.value = ''; }, 100);
 
   // Connect button
   document.getElementById('connect-openrouter-btn').addEventListener('click', () => {
