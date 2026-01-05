@@ -485,6 +485,32 @@ header h1 {
   color: var(--accent);
 }
 
+/* Follow-up suggestions */
+.follow-ups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.follow-up-btn {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.follow-up-btn:hover,
+.follow-up-btn:active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
 /* Chat Input Area */
 .chat-input-area {
   display: flex;

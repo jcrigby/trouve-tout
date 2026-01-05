@@ -582,6 +582,34 @@ function clearChat() {
   `;
 }
 
+// Render follow-up question suggestions
+function renderFollowUps(questions) {
+  const messagesContainer = document.getElementById('chat-messages');
+
+  // Remove any existing follow-ups
+  const existing = messagesContainer.querySelector('.follow-ups');
+  if (existing) existing.remove();
+
+  const followUpDiv = document.createElement('div');
+  followUpDiv.className = 'follow-ups';
+  followUpDiv.innerHTML = questions.map(q =>
+    `<button class="follow-up-btn">${q}</button>`
+  ).join('');
+
+  messagesContainer.appendChild(followUpDiv);
+
+  // Add click handlers
+  followUpDiv.querySelectorAll('.follow-up-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      followUpDiv.remove();
+      askAI(btn.textContent);
+    });
+  });
+
+  // Scroll to bottom
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
 // Ask AI about inventory (with conversation history)
 async function askAI(question) {
   const apiKey = localStorage.getItem('openrouter_key');
@@ -614,11 +642,14 @@ The user has tools stored in numbered boxes. Here is their complete inventory:
 
 ${inventoryContext}
 
-IMPORTANT: Be terse. Just list matching items with box numbers. No introductions, no summaries, no "here's what I found". Example response:
+IMPORTANT: Be terse. Just list matching items with box numbers. No introductions, no summaries, no "here's what I found". Example:
 - Circular Saw (Box 4)
 - Coping Saw (Box 4)
 
-Only elaborate if the user asks follow-up questions.`;
+After your answer, add exactly 3 short follow-up questions on new lines starting with "? ". Example:
+? What brand is the circular saw?
+? Show me all saws
+? What else is in box 4?`;
 
   // Build messages array with history (limit to last 10 exchanges to avoid token limits)
   const recentHistory = chatHistory.slice(-20);
@@ -650,11 +681,31 @@ Only elaborate if the user asks follow-up questions.`;
     }
 
     const data = await response.json();
-    const answer = data.choices?.[0]?.message?.content || 'No response received';
+    const rawAnswer = data.choices?.[0]?.message?.content || 'No response received';
+
+    // Parse out follow-up questions (lines starting with "? ")
+    const lines = rawAnswer.split('\n');
+    const followUps = [];
+    const answerLines = [];
+
+    for (const line of lines) {
+      if (line.startsWith('? ')) {
+        followUps.push(line.slice(2).trim());
+      } else {
+        answerLines.push(line);
+      }
+    }
+
+    const answer = answerLines.join('\n').trim();
 
     // Add to history and UI
     chatHistory.push({ role: 'assistant', content: answer });
     addChatMessage(answer, 'assistant');
+
+    // Render follow-up suggestions
+    if (followUps.length > 0) {
+      renderFollowUps(followUps);
+    }
 
   } catch (err) {
     console.error('AI query error:', err);
