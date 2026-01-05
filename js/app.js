@@ -646,11 +646,13 @@ The user has tools stored in numbered boxes. Here is their complete inventory:
 
 ${inventoryContext}
 
-IMPORTANT: Be terse. Just list matching items with box numbers. No introductions, no summaries, no "here's what I found". Example:
+Rules:
+1. Be terse. Just list items with box numbers. No intro, no summary.
+2. ALWAYS end with exactly 3 follow-up questions starting with "? "
+
+Example response:
 - Circular Saw (Box 4)
 - Coping Saw (Box 4)
-
-After your answer, add exactly 3 short follow-up questions on new lines starting with "? ". Example:
 ? What brand is the circular saw?
 ? Show me all saws
 ? What else is in box 4?`;
