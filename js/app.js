@@ -233,11 +233,6 @@ function setupEventListeners() {
     showAllInventory();
   });
 
-  // Idiot check button
-  document.getElementById('idiot-check-btn').addEventListener('click', () => {
-    showIdiotCheck();
-  });
-
   // Swipe navigation for photo modal
   const modalImage = document.getElementById('modal-image');
   modalImage.addEventListener('touchstart', (e) => {
@@ -299,33 +294,6 @@ function showAllInventory() {
   searchInput.value = '';
   categoryFilter.value = '';
   renderResults(inventory, true);
-}
-
-// Show idiot check - things that don't belong together
-function showIdiotCheck() {
-  const suggestions = [
-    { item: 'Cordless Vacuum', box: 3, issue: 'A vacuum in the Sanders box? It sucks, but not in the sanding way.' },
-    { item: 'Putty Knives/Scrapers', box: 4, issue: 'Hand tools crashing the power tool party in Saws & Grinders.' },
-    { item: 'Propane Torch Kit', box: 2, issue: 'Fire and chisels are roommates. What could go wrong?' }
-  ];
-
-  const html = suggestions.map(s =>
-    `<div class="suggestion-item">
-      <strong>${s.item}</strong> (Box ${s.box})<br>
-      <span class="suggestion-note">${s.issue}</span>
-    </div>`
-  ).join('');
-
-  // Show in a simple alert-style modal (reuse photo modal structure)
-  document.getElementById('modal-box-number').textContent = 'Maybe reconsider...';
-  document.getElementById('modal-image').style.display = 'none';
-  document.getElementById('modal-category').innerHTML = html;
-
-  const existingList = photoModal.querySelector('.inventory-list');
-  if (existingList) existingList.remove();
-
-  document.getElementById('show-box-contents-btn').style.display = 'none';
-  photoModal.classList.add('active');
 }
 
 // Render inventory list HTML
@@ -682,14 +650,16 @@ async function askAI(question) {
   // Build context with inventory
   const inventoryContext = JSON.stringify(inventory, null, 2);
 
-  const systemPrompt = `You are a helpful assistant for a tool inventory app called Trouve-Tout.
+  const systemPrompt = `You are an assistant for a tool inventory app called Trouve-Tout.
 The user has tools stored in numbered boxes. Here is their complete inventory:
 
 ${inventoryContext}
 
-Answer questions about their inventory conversationally and helpfully.
-When mentioning items, include the box number so they can find them.
-Keep answers concise but friendly.`;
+IMPORTANT: Be terse. Just list matching items with box numbers. No introductions, no summaries, no "here's what I found". Example response:
+- Circular Saw (Box 4)
+- Coping Saw (Box 4)
+
+Only elaborate if the user asks follow-up questions.`;
 
   // Build messages array with history (limit to last 10 exchanges to avoid token limits)
   const recentHistory = chatHistory.slice(-20);
