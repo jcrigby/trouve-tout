@@ -1006,10 +1006,7 @@ function setupSettingsEventListeners() {
     syncBtn.disabled = false;
   });
 
-  // Close button for settings modal
-  settingsModal.querySelector('.close').addEventListener('click', () => {
-    settingsModal.classList.remove('active');
-  });
+  // Close settings modal on background click
   settingsModal.addEventListener('click', (e) => {
     if (e.target === settingsModal) {
       settingsModal.classList.remove('active');
