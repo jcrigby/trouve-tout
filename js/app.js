@@ -119,7 +119,7 @@ async function loadInventory() {
 function renderPhotoGrid() {
   photoGrid.innerHTML = photoSets.map(photo => `
     <div class="photo-card" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}">
-      <img src="images/${photo.file}" alt="Box ${photo.box} view ${photo.view}" loading="lazy">
+      <img src="images/thumbs/${photo.file}" alt="Box ${photo.box} view ${photo.view}" loading="lazy">
       <div class="label">${photo.file}</div>
     </div>
   `).join('');

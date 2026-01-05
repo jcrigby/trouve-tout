@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v46';
+const CACHE_NAME = 'trouve-tout-v47';
 const ASSETS = [
   '/',
   '/index.html',
@@ -7,6 +7,19 @@ const ASSETS = [
   '/data/inventory.json',
   '/data/photosets.json',
   '/manifest.json',
+  // Thumbnails for grid (fast initial load)
+  '/images/thumbs/1a.jpg',
+  '/images/thumbs/1b.jpg',
+  '/images/thumbs/2a.jpg',
+  '/images/thumbs/2b.jpg',
+  '/images/thumbs/3a.jpg',
+  '/images/thumbs/3b.jpg',
+  '/images/thumbs/3c.jpg',
+  '/images/thumbs/3d.jpg',
+  '/images/thumbs/3e.jpg',
+  '/images/thumbs/4a.jpg',
+  '/images/thumbs/4b.jpg',
+  // Full-size images for modal view
   '/images/1a.jpg',
   '/images/1b.jpg',
   '/images/2a.jpg',
