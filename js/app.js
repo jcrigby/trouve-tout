@@ -625,6 +625,10 @@ async function askAI(question) {
   input.disabled = true;
   sendBtn.disabled = true;
 
+  // Remove any existing follow-ups
+  const existingFollowUps = document.querySelector('.follow-ups');
+  if (existingFollowUps) existingFollowUps.remove();
+
   // Add user message to UI
   addChatMessage(question, 'user');
 
