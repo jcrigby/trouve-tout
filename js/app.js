@@ -28,6 +28,21 @@ const itemModal = document.getElementById('item-modal');
 const tabs = document.querySelectorAll('.tab');
 const modeContents = document.querySelectorAll('.mode-content');
 
+// Go home - close all modals and switch to Browse Photos tab
+function goHome() {
+  // Close all modals
+  document.querySelectorAll('.modal').forEach(modal => {
+    modal.classList.remove('active');
+  });
+
+  // Switch to Browse Photos tab
+  tabs.forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-mode="photos"]').classList.add('active');
+  modeContents.forEach(content => {
+    content.classList.toggle('active', content.id === 'photos-mode');
+  });
+}
+
 // Initialize app
 async function init() {
   await loadPhotoSets();
@@ -150,12 +165,17 @@ function setupEventListeners() {
   // Category filter
   categoryFilter.addEventListener('change', performSearch);
 
-  // Modal close buttons and home links
-  document.querySelectorAll('.modal .close, .modal-home').forEach(btn => {
+  // Home link in header
+  document.getElementById('home-link').addEventListener('click', (e) => {
+    e.preventDefault();
+    goHome();
+  });
+
+  // Modal home links - go back to start
+  document.querySelectorAll('.modal-home').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      photoModal.classList.remove('active');
-      itemModal.classList.remove('active');
+      goHome();
     });
   });
 

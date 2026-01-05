@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <title>Trouve-Tout</title>
+  <title>Trouvé-tout</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header>
-    <h1>Trouve-Tout</h1>
+    <h1><a href="#" id="home-link">Trouvé-tout</a></h1>
     <p class="subtitle">Where's my crap?</p>
     <button id="settings-btn" class="settings-btn" title="Settings">&#9881;</button>
   </header>
@@ -77,7 +77,7 @@
   <!-- Photo Modal -->
   <div id="photo-modal" class="modal">
     <div class="modal-content">
-      <a href="#" class="modal-home">Trouve-Tout</a>
+      <a href="#" class="modal-home">Trouvé-tout</a>
       <h2 id="modal-box-number"></h2>
       <img id="modal-image" src="" alt="">
       <p id="modal-category"></p>
@@ -88,7 +88,7 @@
   <!-- Item Detail Modal -->
   <div id="item-modal" class="modal">
     <div class="modal-content">
-      <span class="close">&times;</span>
+      <a href="#" class="modal-home">Trouvé-tout</a>
       <h2 id="item-name"></h2>
       <div id="item-details"></div>
       <div class="item-photos" id="item-photos"></div>
@@ -98,7 +98,7 @@
   <!-- Settings Modal -->
   <div id="settings-modal" class="modal">
     <div class="modal-content">
-      <span class="close">&times;</span>
+      <a href="#" class="modal-home">Trouvé-tout</a>
       <h2>Settings</h2>
       <div class="settings-section">
         <label for="github-pat-input">GitHub Personal Access Token</label>
@@ -116,6 +116,6 @@
     </div>
   </div>
 
-  <script src="js/app.js?v=45"></script>
+  <script src="js/app.js?v=46"></script>
 </body>
 </html>
