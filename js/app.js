@@ -182,18 +182,46 @@ function renderPhotoGrid() {
   emptyState.style.display = 'none';
   photosContent.style.display = 'block';
 
+  // Render grid with placeholders first
   photoGrid.innerHTML = photoSets.map(photo => {
-    // Use Drive thumbnail if available, otherwise fall back to static path
-    const imgSrc = photo.driveId
-      ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w200`
-      : `images/thumbs/${photo.file}`;
+    // Use static path for non-Drive photos
+    const imgSrc = photo.driveId ? '' : `images/thumbs/${photo.file}`;
     return `
       <div class="photo-card" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
-        <img src="${imgSrc}" alt="Box ${photo.box} view ${photo.view}" loading="lazy">
+        <img src="${imgSrc}" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">${photo.file}</div>
       </div>
     `;
   }).join('');
+
+  // Load Drive images asynchronously
+  loadDriveImages();
+}
+
+// Load images from Google Drive with authentication
+async function loadDriveImages() {
+  const images = document.querySelectorAll('img[data-drive-id]');
+  for (const img of images) {
+    const driveId = img.dataset.driveId;
+    if (!driveId) continue;
+
+    // Check cache first
+    const cached = DriveStorage.imageCache.get(`${driveId}_thumb`);
+    if (cached) {
+      img.src = cached;
+      continue;
+    }
+
+    // Load from Drive
+    try {
+      const blobUrl = await DriveStorage.getPhotoBlobUrl(driveId, 'thumb');
+      if (blobUrl) {
+        img.src = blobUrl;
+      }
+    } catch (err) {
+      console.error('Failed to load image:', driveId, err);
+    }
+  }
 }
 
 // Populate category dropdown
@@ -381,17 +409,22 @@ function renderInventoryList(items) {
 }
 
 // Show photo modal with box number
-function showPhotoModal(file, box, category, driveId) {
+async function showPhotoModal(file, box, category, driveId) {
   currentPhotoIndex = photoSets.findIndex(p => p.file === file);
   currentBoxNumber = box;
   document.getElementById('modal-box-number').textContent = `Box ${box}`;
   const modalImage = document.getElementById('modal-image');
-  // Use Drive URL if available, otherwise static path
   const photo = photoSets[currentPhotoIndex];
-  const imgSrc = (photo && photo.driveId)
-    ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w800`
-    : `images/${file}`;
-  modalImage.src = imgSrc;
+
+  // Load image with auth if from Drive
+  if (photo && photo.driveId) {
+    modalImage.src = ''; // Clear while loading
+    const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
+    modalImage.src = blobUrl || '';
+  } else {
+    modalImage.src = `images/${file}`;
+  }
+
   modalImage.style.display = '';
   document.getElementById('modal-category').textContent = category;
   const boxContentsBtn = document.getElementById('show-box-contents-btn');
@@ -416,17 +449,20 @@ function showPrevPhoto() {
 }
 
 // Update the photo display with fade
-function updatePhotoDisplay() {
+async function updatePhotoDisplay() {
   const photo = photoSets[currentPhotoIndex];
   const img = document.getElementById('modal-image');
   currentBoxNumber = photo.box;
 
   img.style.opacity = '0.5';
-  // Use Drive URL if available
-  const imgSrc = photo.driveId
-    ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w800`
-    : `images/${photo.file}`;
-  img.src = imgSrc;
+
+  // Load image with auth if from Drive
+  if (photo.driveId) {
+    const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
+    img.src = blobUrl || '';
+  } else {
+    img.src = `images/${photo.file}`;
+  }
   img.onload = () => { img.style.opacity = '1'; };
 
   document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
@@ -435,6 +471,9 @@ function updatePhotoDisplay() {
   // Clear inventory list when navigating
   const existingList = photoModal.querySelector('.inventory-list');
   if (existingList) existingList.remove();
+
+  // Reset button text
+  document.getElementById('show-box-contents-btn').textContent = 'Show Box Contents';
 }
 
 // Handle swipe gesture
@@ -456,7 +495,7 @@ function handleSwipe() {
 let currentItem = null;
 
 // Show item detail modal
-function showItemModal(item) {
+async function showItemModal(item) {
   currentItem = item;
   document.getElementById('item-name').textContent = item.item;
 
@@ -472,20 +511,24 @@ function showItemModal(item) {
     <p><strong>Box:</strong> ${box}</p>
   `;
 
-  // Show photos from Drive if available
-  const photoSet = photoSets.find(p => photos.includes(p.file.replace('.jpg', '')));
-  if (photoSet && photoSet.driveId) {
-    document.getElementById('item-photos').innerHTML = photos.map(p => {
-      const ps = photoSets.find(ps => ps.file === `${p}.jpg`);
-      const src = ps && ps.driveId
-        ? `https://drive.google.com/thumbnail?id=${ps.driveId}&sz=w400`
-        : `images/${p}.jpg`;
-      return `<img src="${src}" alt="Box ${box}" loading="lazy">`;
-    }).join('');
-  } else {
-    document.getElementById('item-photos').innerHTML = photos.map(p =>
-      `<img src="images/${p}.jpg" alt="Box ${box}" loading="lazy">`
-    ).join('');
+  // Create placeholder images
+  const photosContainer = document.getElementById('item-photos');
+  photosContainer.innerHTML = photos.map((p, i) =>
+    `<img src="" alt="Box ${box}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
+  ).join('');
+
+  // Load photos from Drive with auth
+  for (let i = 0; i < photos.length; i++) {
+    const p = photos[i];
+    const ps = photoSets.find(ps => ps.file === `${p}.jpg`);
+    const img = document.getElementById(`item-photo-${i}`);
+
+    if (ps && ps.driveId) {
+      const blobUrl = await DriveStorage.getPhotoBlobUrl(ps.driveId, 'full');
+      if (blobUrl) img.src = blobUrl;
+    } else {
+      img.src = `images/${p}.jpg`;
+    }
   }
 
   // Show edit/delete buttons if connected to Drive
@@ -930,6 +973,7 @@ const DriveStorage = {
     localStorage.removeItem('google_token_expiry');
     localStorage.removeItem('google_drive_folder_id');
     this.folderId = null;
+    this.clearImageCache();
   },
 
   // Make authenticated API request
@@ -1079,10 +1123,49 @@ const DriveStorage = {
     return await response.json();
   },
 
-  // Get photo URL for display
-  async getPhotoUrl(fileId) {
-    // Use the thumbnail endpoint which doesn't require auth
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+  // Cache for blob URLs
+  imageCache: new Map(),
+
+  // Get photo as blob URL (fetches with auth, caches result)
+  async getPhotoBlobUrl(fileId, size = 'w800') {
+    const cacheKey = `${fileId}_${size}`;
+    if (this.imageCache.has(cacheKey)) {
+      return this.imageCache.get(cacheKey);
+    }
+
+    try {
+      const token = this.getAccessToken();
+      if (!token) return null;
+
+      // Fetch the thumbnail with authentication
+      const response = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }
+      );
+
+      if (!response.ok) {
+        console.error('Failed to fetch image:', response.status);
+        return null;
+      }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      this.imageCache.set(cacheKey, blobUrl);
+      return blobUrl;
+    } catch (err) {
+      console.error('Error fetching image:', err);
+      return null;
+    }
+  },
+
+  // Clear image cache (call on disconnect)
+  clearImageCache() {
+    for (const url of this.imageCache.values()) {
+      URL.revokeObjectURL(url);
+    }
+    this.imageCache.clear();
   },
 
   // Delete a file from Drive
