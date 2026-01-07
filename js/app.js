@@ -863,6 +863,17 @@ const DriveStorage = {
 
         console.log('Google Drive connected successfully!');
 
+        // Load data from Drive
+        try {
+          await loadPhotoSets();
+          await loadInventory();
+          renderPhotoGrid();
+          populateCategories();
+          console.log(`Loaded ${photoSets.length} photos, ${inventory.length} items from Drive`);
+        } catch (err) {
+          console.error('Failed to load data from Drive:', err);
+        }
+
         // Update UI
         updateGoogleConnectionUI();
         updateAddStuffUI();
