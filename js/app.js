@@ -323,22 +323,27 @@ function setupEventListeners() {
   });
 }
 
-// Show contents of a specific box
+// Toggle contents of a specific box
 function showBoxContents(boxNumber) {
+  const btn = document.getElementById('show-box-contents-btn');
+  const existingList = photoModal.querySelector('.inventory-list');
+
+  // Toggle: if list exists, hide it
+  if (existingList) {
+    existingList.remove();
+    btn.textContent = 'Show Box Contents';
+    return;
+  }
+
+  // Otherwise show the list
   const boxItems = inventory.filter(item => {
     const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
     return itemBox === String(boxNumber);
   });
 
   const listHtml = renderInventoryList(boxItems);
-
-  // Remove existing list if any
-  const existingList = photoModal.querySelector('.inventory-list');
-  if (existingList) existingList.remove();
-
-  // Add the list after the button
-  const btn = document.getElementById('show-box-contents-btn');
   btn.insertAdjacentHTML('afterend', listHtml);
+  btn.textContent = 'Hide Box Contents';
 }
 
 // Show all inventory
@@ -384,7 +389,9 @@ function showPhotoModal(file, box, category, driveId) {
   modalImage.src = imgSrc;
   modalImage.style.display = '';
   document.getElementById('modal-category').textContent = category;
-  document.getElementById('show-box-contents-btn').style.display = '';
+  const boxContentsBtn = document.getElementById('show-box-contents-btn');
+  boxContentsBtn.style.display = '';
+  boxContentsBtn.textContent = 'Show Box Contents';
   // Clear any previous inventory list
   const existingList = photoModal.querySelector('.inventory-list');
   if (existingList) existingList.remove();
