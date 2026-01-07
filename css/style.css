@@ -89,6 +89,23 @@ header h1 a:active {
   font-size: 0.9rem;
 }
 
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: var(--text-secondary);
+}
+
+.empty-state p:first-child {
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.empty-hint {
+  font-size: 0.9rem;
+}
+
 /* Photo Grid */
 .photo-grid {
   display: grid;

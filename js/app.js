@@ -172,12 +172,30 @@ async function loadInventory() {
 
 // Render photo grid for visual browsing
 function renderPhotoGrid() {
-  photoGrid.innerHTML = photoSets.map(photo => `
-    <div class="photo-card" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}">
-      <img src="images/thumbs/${photo.file}" alt="Box ${photo.box} view ${photo.view}" loading="lazy">
-      <div class="label">${photo.file}</div>
-    </div>
-  `).join('');
+  const emptyState = document.getElementById('photos-empty');
+  const photosContent = document.getElementById('photos-content');
+
+  if (photoSets.length === 0) {
+    emptyState.style.display = 'block';
+    photosContent.style.display = 'none';
+    return;
+  }
+
+  emptyState.style.display = 'none';
+  photosContent.style.display = 'block';
+
+  photoGrid.innerHTML = photoSets.map(photo => {
+    // Use Drive thumbnail if available, otherwise fall back to static path
+    const imgSrc = photo.driveId
+      ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w200`
+      : `images/thumbs/${photo.file}`;
+    return `
+      <div class="photo-card" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
+        <img src="${imgSrc}" alt="Box ${photo.box} view ${photo.view}" loading="lazy">
+        <div class="label">${photo.file}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 // Populate category dropdown
@@ -345,12 +363,17 @@ function renderInventoryList(items) {
 }
 
 // Show photo modal with box number
-function showPhotoModal(file, box, category) {
+function showPhotoModal(file, box, category, driveId) {
   currentPhotoIndex = photoSets.findIndex(p => p.file === file);
   currentBoxNumber = box;
   document.getElementById('modal-box-number').textContent = `Box ${box}`;
   const modalImage = document.getElementById('modal-image');
-  modalImage.src = `images/${file}`;
+  // Use Drive URL if available, otherwise static path
+  const photo = photoSets[currentPhotoIndex];
+  const imgSrc = (photo && photo.driveId)
+    ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w800`
+    : `images/${file}`;
+  modalImage.src = imgSrc;
   modalImage.style.display = '';
   document.getElementById('modal-category').textContent = category;
   document.getElementById('show-box-contents-btn').style.display = '';
@@ -379,7 +402,11 @@ function updatePhotoDisplay() {
   currentBoxNumber = photo.box;
 
   img.style.opacity = '0.5';
-  img.src = `images/${photo.file}`;
+  // Use Drive URL if available
+  const imgSrc = photo.driveId
+    ? `https://drive.google.com/thumbnail?id=${photo.driveId}&sz=w800`
+    : `images/${photo.file}`;
+  img.src = imgSrc;
   img.onload = () => { img.style.opacity = '1'; };
 
   document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;

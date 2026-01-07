@@ -1,36 +1,10 @@
-const CACHE_NAME = 'trouve-tout-v50';
+const CACHE_NAME = 'trouve-tout-v51';
 const ASSETS = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/app.js',
-  '/data/inventory.json',
-  '/data/photosets.json',
-  '/manifest.json',
-  // Thumbnails for grid (fast initial load)
-  '/images/thumbs/1a.jpg',
-  '/images/thumbs/1b.jpg',
-  '/images/thumbs/2a.jpg',
-  '/images/thumbs/2b.jpg',
-  '/images/thumbs/3a.jpg',
-  '/images/thumbs/3b.jpg',
-  '/images/thumbs/3c.jpg',
-  '/images/thumbs/3d.jpg',
-  '/images/thumbs/3e.jpg',
-  '/images/thumbs/4a.jpg',
-  '/images/thumbs/4b.jpg',
-  // Full-size images for modal view
-  '/images/1a.jpg',
-  '/images/1b.jpg',
-  '/images/2a.jpg',
-  '/images/2b.jpg',
-  '/images/3a.jpg',
-  '/images/3b.jpg',
-  '/images/3c.jpg',
-  '/images/3d.jpg',
-  '/images/3e.jpg',
-  '/images/4a.jpg',
-  '/images/4b.jpg'
+  '/manifest.json'
 ];
 
 // Install - cache all assets
@@ -54,32 +28,26 @@ self.addEventListener('activate', event => {
   );
 });
 
-// Fetch - network first for data, stale-while-revalidate for assets
+// Fetch - stale-while-revalidate for app assets
+// Data is stored in user's Google Drive, not static files
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Network first for data files (always get fresh data if online)
-  if (url.pathname.endsWith('inventory.json') || url.pathname.endsWith('photosets.json')) {
-    event.respondWith(
-      fetch(event.request)
-        .then(response => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => caches.match(event.request))
-    );
+  // Only handle same-origin requests
+  if (url.origin !== location.origin) {
     return;
   }
 
-  // Stale-while-revalidate for other assets
+  // Stale-while-revalidate for app assets
   event.respondWith(
     caches.match(event.request).then(cached => {
       const fetchPromise = fetch(event.request).then(response => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
         return response;
-      });
+      }).catch(() => cached);
       return cached || fetchPromise;
     })
   );
