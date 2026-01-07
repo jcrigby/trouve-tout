@@ -894,7 +894,7 @@ const DriveStorage = {
     this.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: GOOGLE_SCOPE,
-      callback: (tokenResponse) => {
+      callback: async (tokenResponse) => {
         if (tokenResponse.error) {
           console.error('Google OAuth error:', tokenResponse.error);
           return;
