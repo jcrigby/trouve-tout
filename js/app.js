@@ -13,6 +13,20 @@ const OPENROUTER_TOKEN_URL = 'https://openrouter.ai/api/v1/auth/keys';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CALLBACK_URL = window.location.origin + window.location.pathname;
 
+// Google Drive OAuth config
+const GOOGLE_CLIENT_ID = '339196755594-oajh6pqn0o178o9ipsvg7d7r86dg2sv5.apps.googleusercontent.com';
+const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const GOOGLE_DRIVE_API = 'https://www.googleapis.com/drive/v3';
+const GOOGLE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
+const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+
+// AI Models
+const MODELS = {
+  vision: 'anthropic/claude-sonnet-4',  // For photo analysis
+  chat: 'anthropic/claude-3-haiku'       // For general conversation
+};
+
 // GitHub config
 const GITHUB_OWNER = 'jcrigby';
 const GITHUB_REPO = 'trouve-tout';
@@ -45,19 +59,36 @@ function goHome() {
 
 // Initialize app
 async function init() {
-  await loadPhotoSets();
-  await loadInventory();
-  renderPhotoGrid();
-  populateCategories();
+  // Setup event listeners first (before data load)
   setupEventListeners();
   setupAIEventListeners();
   setupSettingsEventListeners();
   registerServiceWorker();
 
-  // Handle OAuth callback if returning from OpenRouter
-  const callbackHandled = await handleOAuthCallback();
-  if (callbackHandled) {
-    // Switch to Ask AI tab after successful connection
+  // Handle OAuth callbacks
+  let switchToTab = null;
+
+  // Check for Google OAuth callback first
+  const googleCallbackHandled = await DriveStorage.handleCallback();
+  if (googleCallbackHandled) {
+    console.log('Google Drive connected!');
+    switchToTab = 'add-stuff'; // Will switch once we have the tab
+  }
+
+  // Check for OpenRouter OAuth callback
+  const openrouterCallbackHandled = await handleOAuthCallback();
+  if (openrouterCallbackHandled) {
+    switchToTab = 'ask-ai';
+  }
+
+  // Load data (tries Drive first if connected, falls back to static/GitHub)
+  await loadPhotoSets();
+  await loadInventory();
+  renderPhotoGrid();
+  populateCategories();
+
+  // Switch to appropriate tab after OAuth
+  if (switchToTab === 'ask-ai') {
     tabs.forEach(t => t.classList.remove('active'));
     document.querySelector('[data-mode="ask-ai"]').classList.add('active');
     modeContents.forEach(content => {
@@ -65,16 +96,28 @@ async function init() {
     });
   }
 
-  // Update AI UI based on connection status
+  // Update connection UI
   updateAIConnectionUI();
+  updateGoogleConnectionUI();
+  updateAddStuffUI();
 }
 
-// Load photo sets data (from GitHub API if PAT configured, otherwise static file)
+// Load photo sets data (from Drive, GitHub API, or static file)
 async function loadPhotoSets() {
   try {
+    // Try Google Drive first
+    if (DriveStorage.isConnected()) {
+      const driveData = await DriveStorage.loadPhotosets();
+      if (driveData && driveData.length > 0) {
+        photoSets = driveData;
+        console.log('Loaded photosets from Google Drive');
+        return;
+      }
+    }
+
+    // Try GitHub API
     const pat = getGitHubPAT();
     if (pat) {
-      // Fetch from GitHub API for latest data
       const fileInfo = await getFileFromGitHub('data/photosets.json');
       if (fileInfo && fileInfo.content) {
         photoSets = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
@@ -82,6 +125,7 @@ async function loadPhotoSets() {
         return;
       }
     }
+
     // Fall back to static file
     const response = await fetch('data/photosets.json');
     photoSets = await response.json();
@@ -92,12 +136,22 @@ async function loadPhotoSets() {
   }
 }
 
-// Load inventory data (from GitHub API if PAT configured, otherwise static file)
+// Load inventory data (from Drive, GitHub API, or static file)
 async function loadInventory() {
   try {
+    // Try Google Drive first
+    if (DriveStorage.isConnected()) {
+      const driveData = await DriveStorage.loadInventory();
+      if (driveData && driveData.length > 0) {
+        inventory = driveData;
+        console.log('Loaded inventory from Google Drive');
+        return;
+      }
+    }
+
+    // Try GitHub API
     const pat = getGitHubPAT();
     if (pat) {
-      // Fetch from GitHub API for latest data
       const fileInfo = await getFileFromGitHub('data/inventory.json');
       if (fileInfo && fileInfo.content) {
         inventory = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
@@ -105,6 +159,7 @@ async function loadInventory() {
         return;
       }
     }
+
     // Fall back to static file
     const response = await fetch('data/inventory.json');
     inventory = await response.json();
@@ -547,6 +602,345 @@ function disconnect() {
   updateAIConnectionUI();
 }
 
+// ==================== Google Drive Storage ====================
+
+const DriveStorage = {
+  FOLDER_NAME: 'Trouve-Tout',
+  folderId: null,
+
+  // Check if connected to Google Drive
+  isConnected() {
+    return !!localStorage.getItem('google_access_token');
+  },
+
+  // Get access token
+  getAccessToken() {
+    return localStorage.getItem('google_access_token');
+  },
+
+  // Start Google OAuth flow with PKCE
+  async startAuthFlow() {
+    const codeVerifier = generateCodeVerifier();
+    sessionStorage.setItem('google_code_verifier', codeVerifier);
+
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: CALLBACK_URL,
+      response_type: 'code',
+      scope: GOOGLE_SCOPE,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      access_type: 'offline',
+      prompt: 'consent'
+    });
+
+    window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`;
+  },
+
+  // Handle OAuth callback
+  async handleCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+
+    // Check if this is a Google callback (has code but no OpenRouter verifier active)
+    if (!code || sessionStorage.getItem('openrouter_code_verifier')) {
+      return false;
+    }
+
+    const codeVerifier = sessionStorage.getItem('google_code_verifier');
+    if (!codeVerifier) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(GOOGLE_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
+          code: code,
+          code_verifier: codeVerifier,
+          grant_type: 'authorization_code',
+          redirect_uri: CALLBACK_URL
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error_description || 'Token exchange failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('google_access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('google_refresh_token', data.refresh_token);
+      }
+      localStorage.setItem('google_token_expiry', Date.now() + (data.expires_in * 1000));
+
+      sessionStorage.removeItem('google_code_verifier');
+      window.history.replaceState({}, document.title, CALLBACK_URL);
+
+      return true;
+    } catch (err) {
+      console.error('Google OAuth error:', err);
+      return false;
+    }
+  },
+
+  // Refresh token if expired
+  async refreshTokenIfNeeded() {
+    const expiry = localStorage.getItem('google_token_expiry');
+    if (expiry && Date.now() < parseInt(expiry) - 60000) {
+      return true; // Token still valid (with 1 min buffer)
+    }
+
+    const refreshToken = localStorage.getItem('google_refresh_token');
+    if (!refreshToken) {
+      return false;
+    }
+
+    try {
+      const response = await fetch(GOOGLE_TOKEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: GOOGLE_CLIENT_ID,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Token refresh failed');
+      }
+
+      const data = await response.json();
+      localStorage.setItem('google_access_token', data.access_token);
+      localStorage.setItem('google_token_expiry', Date.now() + (data.expires_in * 1000));
+
+      return true;
+    } catch (err) {
+      console.error('Token refresh error:', err);
+      this.disconnect();
+      return false;
+    }
+  },
+
+  // Disconnect from Google Drive
+  disconnect() {
+    localStorage.removeItem('google_access_token');
+    localStorage.removeItem('google_refresh_token');
+    localStorage.removeItem('google_token_expiry');
+    localStorage.removeItem('google_drive_folder_id');
+    this.folderId = null;
+  },
+
+  // Make authenticated API request
+  async apiRequest(url, options = {}) {
+    await this.refreshTokenIfNeeded();
+    const token = this.getAccessToken();
+    if (!token) {
+      throw new Error('Not connected to Google Drive');
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+      }
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error?.message || `API error: ${response.status}`);
+    }
+
+    return response;
+  },
+
+  // Initialize - find or create app folder
+  async init() {
+    // Check cached folder ID first
+    const cachedId = localStorage.getItem('google_drive_folder_id');
+    if (cachedId) {
+      this.folderId = cachedId;
+      return this.folderId;
+    }
+
+    // Search for existing folder
+    const query = `name='${this.FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+    const searchUrl = `${GOOGLE_DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=files(id,name)`;
+
+    const response = await this.apiRequest(searchUrl);
+    const data = await response.json();
+
+    if (data.files && data.files.length > 0) {
+      this.folderId = data.files[0].id;
+    } else {
+      // Create folder
+      const createResponse = await this.apiRequest(`${GOOGLE_DRIVE_API}/files`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: this.FOLDER_NAME,
+          mimeType: 'application/vnd.google-apps.folder'
+        })
+      });
+      const folder = await createResponse.json();
+      this.folderId = folder.id;
+    }
+
+    localStorage.setItem('google_drive_folder_id', this.folderId);
+    return this.folderId;
+  },
+
+  // Find a file by name in the app folder
+  async findFile(filename) {
+    await this.init();
+    const query = `name='${filename}' and '${this.folderId}' in parents and trashed=false`;
+    const url = `${GOOGLE_DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=files(id,name)`;
+
+    const response = await this.apiRequest(url);
+    const data = await response.json();
+
+    return data.files && data.files.length > 0 ? data.files[0] : null;
+  },
+
+  // Read a JSON file from Drive
+  async readJsonFile(filename) {
+    const file = await this.findFile(filename);
+    if (!file) return null;
+
+    const response = await this.apiRequest(
+      `${GOOGLE_DRIVE_API}/files/${file.id}?alt=media`
+    );
+    return await response.json();
+  },
+
+  // Write a JSON file to Drive (create or update)
+  async writeJsonFile(filename, data) {
+    await this.init();
+    const existing = await this.findFile(filename);
+    const content = JSON.stringify(data, null, 2);
+    const blob = new Blob([content], { type: 'application/json' });
+
+    if (existing) {
+      // Update existing file
+      await this.apiRequest(
+        `${GOOGLE_UPLOAD_API}/files/${existing.id}?uploadType=media`,
+        {
+          method: 'PATCH',
+          body: blob
+        }
+      );
+    } else {
+      // Create new file with multipart upload
+      const metadata = {
+        name: filename,
+        parents: [this.folderId]
+      };
+
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', blob);
+
+      await this.apiRequest(
+        `${GOOGLE_UPLOAD_API}/files?uploadType=multipart`,
+        {
+          method: 'POST',
+          body: form
+        }
+      );
+    }
+  },
+
+  // Upload a photo to Drive
+  async uploadPhoto(file, filename) {
+    await this.init();
+
+    const metadata = {
+      name: filename,
+      parents: [this.folderId]
+    };
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+    form.append('file', file);
+
+    const response = await this.apiRequest(
+      `${GOOGLE_UPLOAD_API}/files?uploadType=multipart&fields=id,name,webContentLink`,
+      {
+        method: 'POST',
+        body: form
+      }
+    );
+
+    return await response.json();
+  },
+
+  // Get photo URL for display
+  async getPhotoUrl(fileId) {
+    // Use the thumbnail endpoint which doesn't require auth
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
+  },
+
+  // Delete a file from Drive
+  async deleteFile(fileId) {
+    await this.apiRequest(`${GOOGLE_DRIVE_API}/files/${fileId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  // Load inventory from Drive
+  async loadInventory() {
+    return await this.readJsonFile('inventory.json') || [];
+  },
+
+  // Save inventory to Drive
+  async saveInventory(data) {
+    await this.writeJsonFile('inventory.json', data);
+  },
+
+  // Load photosets from Drive
+  async loadPhotosets() {
+    return await this.readJsonFile('photosets.json') || [];
+  },
+
+  // Save photosets to Drive
+  async savePhotosets(data) {
+    await this.writeJsonFile('photosets.json', data);
+  }
+};
+
+// Update Google Drive connection UI
+function updateGoogleConnectionUI() {
+  const connectBtn = document.getElementById('connect-google-btn');
+  const disconnectBtn = document.getElementById('google-disconnect-btn');
+  const status = document.getElementById('google-status');
+
+  if (!connectBtn) return; // UI not present yet
+
+  if (DriveStorage.isConnected()) {
+    connectBtn.style.display = 'none';
+    if (disconnectBtn) disconnectBtn.style.display = '';
+    if (status) {
+      status.textContent = 'Connected to Google Drive';
+      status.className = 'settings-status success';
+    }
+  } else {
+    connectBtn.style.display = '';
+    if (disconnectBtn) disconnectBtn.style.display = 'none';
+    if (status) {
+      status.textContent = 'Not connected';
+      status.className = 'settings-status';
+    }
+  }
+}
+
 // Update AI section UI based on connection status
 function updateAIConnectionUI() {
   const notConnected = document.getElementById('ai-not-connected');
@@ -968,6 +1362,9 @@ function setupSettingsEventListeners() {
       document.getElementById('pat-status').textContent = 'Token saved';
       document.getElementById('pat-status').className = 'settings-status success';
     }
+    // Update connection status displays
+    updateGoogleConnectionUI();
+    updateSettingsOpenRouterUI();
     settingsModal.classList.add('active');
   });
 
@@ -982,6 +1379,32 @@ function setupSettingsEventListeners() {
       document.getElementById('pat-status').textContent = 'Please enter a token';
       document.getElementById('pat-status').className = 'settings-status error';
     }
+  });
+
+  // Google Drive connect buttons (in settings and add-stuff mode)
+  document.getElementById('settings-connect-google-btn').addEventListener('click', () => {
+    DriveStorage.startAuthFlow();
+  });
+  document.getElementById('connect-google-btn').addEventListener('click', () => {
+    DriveStorage.startAuthFlow();
+  });
+
+  // Google Drive disconnect
+  document.getElementById('google-disconnect-btn').addEventListener('click', () => {
+    DriveStorage.disconnect();
+    updateGoogleConnectionUI();
+    updateAddStuffUI();
+  });
+
+  // OpenRouter connect from settings
+  document.getElementById('settings-connect-openrouter-btn').addEventListener('click', () => {
+    startOAuthFlow();
+  });
+
+  // OpenRouter disconnect from settings
+  document.getElementById('settings-openrouter-disconnect-btn').addEventListener('click', () => {
+    disconnect();
+    updateSettingsOpenRouterUI();
   });
 
   // Sync button
@@ -1015,6 +1438,532 @@ function setupSettingsEventListeners() {
       settingsModal.classList.remove('active');
     }
   });
+
+  // Setup Add Stuff mode event listeners
+  setupAddStuffEventListeners();
+}
+
+// Update OpenRouter status in settings
+function updateSettingsOpenRouterUI() {
+  const connectBtn = document.getElementById('settings-connect-openrouter-btn');
+  const disconnectBtn = document.getElementById('settings-openrouter-disconnect-btn');
+  const status = document.getElementById('openrouter-status');
+
+  if (isConnected()) {
+    connectBtn.style.display = 'none';
+    disconnectBtn.style.display = '';
+    status.textContent = 'Connected to OpenRouter';
+    status.className = 'settings-status success';
+  } else {
+    connectBtn.style.display = '';
+    disconnectBtn.style.display = 'none';
+    status.textContent = 'Not connected';
+    status.className = 'settings-status';
+  }
+}
+
+// Update Add Stuff mode UI based on connection status
+function updateAddStuffUI() {
+  const notConnected = document.getElementById('add-not-connected');
+  const connected = document.getElementById('add-connected');
+  const openrouterPrompt = document.getElementById('add-openrouter-prompt');
+
+  const googleConnected = DriveStorage.isConnected();
+  const aiConnected = isConnected();
+
+  if (googleConnected && aiConnected) {
+    // Fully connected - show chat interface
+    notConnected.style.display = 'none';
+    connected.style.display = 'block';
+  } else if (googleConnected) {
+    // Google connected but not OpenRouter - prompt for OpenRouter
+    notConnected.style.display = 'block';
+    connected.style.display = 'none';
+    document.getElementById('connect-google-btn').style.display = 'none';
+    openrouterPrompt.style.display = 'block';
+  } else {
+    // Not connected to Google
+    notConnected.style.display = 'block';
+    connected.style.display = 'none';
+    document.getElementById('connect-google-btn').style.display = '';
+    openrouterPrompt.style.display = 'none';
+  }
+}
+
+// Setup Add Stuff mode event listeners
+function setupAddStuffEventListeners() {
+  // OpenRouter connect from add-stuff mode
+  const addConnectBtn = document.getElementById('add-connect-openrouter-btn');
+  if (addConnectBtn) {
+    addConnectBtn.addEventListener('click', () => {
+      startOAuthFlow();
+    });
+  }
+
+  // Photo input button
+  document.getElementById('add-photo-btn').addEventListener('click', () => {
+    document.getElementById('add-photo-input').click();
+  });
+
+  // Photo file selection
+  document.getElementById('add-photo-input').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 0) {
+      await handlePhotosSelected(files);
+    }
+    e.target.value = ''; // Reset for next selection
+  });
+
+  // Send button
+  document.getElementById('add-send-btn').addEventListener('click', () => {
+    const input = document.getElementById('add-input');
+    if (input.value.trim()) {
+      handleAddMessage(input.value.trim());
+      input.value = '';
+    }
+  });
+
+  // Enter key on input
+  document.getElementById('add-input').addEventListener('keypress', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      const input = document.getElementById('add-input');
+      if (input.value.trim()) {
+        handleAddMessage(input.value.trim());
+        input.value = '';
+      }
+    }
+  });
+
+  // Clear/Start Over button
+  document.getElementById('add-clear-btn').addEventListener('click', () => {
+    clearAddStuffChat();
+  });
+}
+
+// Add Stuff conversation state
+const addStuffState = {
+  pendingPhotos: [],      // { file, dataUrl, analyzing }
+  detectedItems: [],      // { item, brand, model, type, confirmed }
+  selectedBox: null,
+  chatHistory: []
+};
+
+// Handle photos selected for Add Stuff
+async function handlePhotosSelected(files) {
+  const pendingContainer = document.getElementById('pending-photos');
+
+  for (const file of files) {
+    // Convert to data URL for preview and vision API
+    const dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    const photoEntry = { file, dataUrl, analyzing: false };
+    addStuffState.pendingPhotos.push(photoEntry);
+
+    // Add preview
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.className = 'pending-photo';
+    img.dataset.index = addStuffState.pendingPhotos.length - 1;
+    pendingContainer.appendChild(img);
+  }
+
+  // Trigger analysis
+  addAddChatMessage(`Added ${files.length} photo${files.length > 1 ? 's' : ''}. Analyzing...`, 'assistant');
+  await analyzePhotosWithVision();
+}
+
+// Analyze photos with vision model
+async function analyzePhotosWithVision() {
+  const apiKey = localStorage.getItem('openrouter_key');
+  if (!apiKey) {
+    addAddChatMessage('Please connect OpenRouter to analyze photos.', 'assistant');
+    return;
+  }
+
+  const unanalyzed = addStuffState.pendingPhotos.filter(p => !p.analyzed);
+  if (unanalyzed.length === 0) return;
+
+  // Mark as analyzing
+  unanalyzed.forEach(p => p.analyzing = true);
+  updatePendingPhotosUI();
+
+  try {
+    // Build vision message with all pending photos
+    const imageContents = unanalyzed.map(p => ({
+      type: 'image_url',
+      image_url: { url: p.dataUrl }
+    }));
+
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': CALLBACK_URL,
+        'X-Title': 'Trouve-Tout'
+      },
+      body: JSON.stringify({
+        model: MODELS.vision,
+        messages: [
+          {
+            role: 'system',
+            content: `You are helping catalog tools for an inventory app. Analyze the image(s) and identify each tool you see.
+
+For each tool, provide:
+- item: what it is (e.g., "Circular Saw", "Cordless Drill")
+- brand: manufacturer if visible (or "Unknown")
+- model: model number if visible (or null)
+- type: power type (e.g., "cordless", "corded", "pneumatic", "manual")
+
+Respond with a JSON array of objects. Example:
+[{"item": "Cordless Drill", "brand": "DeWalt", "model": "DCD771", "type": "cordless"}]
+
+Only output the JSON array, no other text.`
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What tools do you see in these photos?' },
+              ...imageContents
+            ]
+          }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || '[]';
+
+    // Parse the JSON response
+    let items = [];
+    try {
+      // Handle possible markdown code blocks
+      const jsonMatch = content.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        items = JSON.parse(jsonMatch[0]);
+      }
+    } catch (parseErr) {
+      console.error('Failed to parse vision response:', content);
+      addAddChatMessage('Had trouble identifying the tools. Please describe them manually.', 'assistant');
+    }
+
+    // Add detected items
+    if (items.length > 0) {
+      items.forEach(item => {
+        addStuffState.detectedItems.push({ ...item, confirmed: false });
+      });
+      updateDetectedItemsUI();
+
+      const itemList = items.map(i => `${i.item}${i.brand !== 'Unknown' ? ` (${i.brand})` : ''}`).join(', ');
+      addAddChatMessage(`I found: ${itemList}\n\nDoes this look right? Tap an item to edit it, or type corrections.`, 'assistant');
+    } else {
+      addAddChatMessage("I couldn't identify specific tools. Please describe what's in the photos.", 'assistant');
+    }
+
+    // Mark as analyzed
+    unanalyzed.forEach(p => {
+      p.analyzing = false;
+      p.analyzed = true;
+    });
+    updatePendingPhotosUI();
+
+  } catch (err) {
+    console.error('Vision analysis error:', err);
+    addAddChatMessage(`Error analyzing photos: ${err.message}`, 'assistant');
+    unanalyzed.forEach(p => p.analyzing = false);
+    updatePendingPhotosUI();
+  }
+}
+
+// Update pending photos UI
+function updatePendingPhotosUI() {
+  const container = document.getElementById('pending-photos');
+  const photos = container.querySelectorAll('.pending-photo');
+
+  photos.forEach((img, idx) => {
+    const photo = addStuffState.pendingPhotos[idx];
+    if (photo) {
+      img.classList.toggle('analyzing', photo.analyzing);
+    }
+  });
+}
+
+// Update detected items UI
+function updateDetectedItemsUI() {
+  const container = document.getElementById('detected-items');
+  container.innerHTML = addStuffState.detectedItems.map((item, idx) => `
+    <div class="item-chip ${item.confirmed ? 'confirmed' : ''}" data-index="${idx}">
+      <span class="item-chip-text">${item.item}${item.brand !== 'Unknown' ? ` (${item.brand})` : ''}</span>
+      <span class="item-chip-remove" data-index="${idx}">&times;</span>
+    </div>
+  `).join('');
+
+  // Add click handlers
+  container.querySelectorAll('.item-chip').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('item-chip-remove')) {
+        const idx = parseInt(chip.dataset.index);
+        editDetectedItem(idx);
+      }
+    });
+  });
+
+  container.querySelectorAll('.item-chip-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = parseInt(btn.dataset.index);
+      addStuffState.detectedItems.splice(idx, 1);
+      updateDetectedItemsUI();
+    });
+  });
+}
+
+// Edit a detected item
+function editDetectedItem(idx) {
+  const item = addStuffState.detectedItems[idx];
+  const newName = prompt('Edit item name:', item.item);
+  if (newName !== null) {
+    item.item = newName;
+    item.confirmed = true;
+    updateDetectedItemsUI();
+  }
+}
+
+// Handle text message in Add Stuff mode
+async function handleAddMessage(message) {
+  addAddChatMessage(message, 'user');
+  addStuffState.chatHistory.push({ role: 'user', content: message });
+
+  // Check for box selection
+  const boxMatch = message.match(/box\s*(\d+)/i);
+  if (boxMatch && addStuffState.detectedItems.length > 0) {
+    addStuffState.selectedBox = parseInt(boxMatch[1]);
+    await saveInventoryItems();
+    return;
+  }
+
+  // If we have detected items, check for confirmation
+  if (addStuffState.detectedItems.length > 0) {
+    const lowerMsg = message.toLowerCase();
+    if (lowerMsg.includes('yes') || lowerMsg.includes('correct') || lowerMsg.includes('right') || lowerMsg.includes('good') || lowerMsg.includes('perfect')) {
+      // Confirm all items
+      addStuffState.detectedItems.forEach(item => item.confirmed = true);
+      updateDetectedItemsUI();
+      addAddChatMessage('Great! Which box should these go in? (e.g., "Box 3" or "new box")', 'assistant');
+      return;
+    }
+
+    if (lowerMsg.includes('new box')) {
+      // Create new box
+      const maxBox = Math.max(...photoSets.map(p => p.box), 0);
+      addStuffState.selectedBox = maxBox + 1;
+      const category = prompt('What category for the new box?', 'Tools');
+      if (category) {
+        await saveInventoryItems(category);
+      }
+      return;
+    }
+  }
+
+  // Otherwise, use AI to continue conversation
+  await continueAddConversation(message);
+}
+
+// Continue Add Stuff conversation with AI
+async function continueAddConversation(message) {
+  const apiKey = localStorage.getItem('openrouter_key');
+  if (!apiKey) {
+    addAddChatMessage('Please connect OpenRouter first.', 'assistant');
+    return;
+  }
+
+  addAddChatMessage('Thinking...', 'thinking');
+
+  try {
+    const context = {
+      pendingPhotos: addStuffState.pendingPhotos.length,
+      detectedItems: addStuffState.detectedItems,
+      existingBoxes: [...new Set(photoSets.map(p => p.box))].sort((a, b) => a - b)
+    };
+
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': CALLBACK_URL,
+        'X-Title': 'Trouve-Tout'
+      },
+      body: JSON.stringify({
+        model: MODELS.chat,
+        messages: [
+          {
+            role: 'system',
+            content: `You are helping a user add tools to their inventory. Be brief and helpful.
+
+Current state:
+- Photos pending: ${context.pendingPhotos}
+- Detected items: ${JSON.stringify(context.detectedItems)}
+- Existing boxes: ${context.existingBoxes.join(', ')}
+
+Help them:
+1. Correct any misidentified items
+2. Choose which box to put items in
+3. Create new boxes if needed
+
+Keep responses short and action-oriented.`
+          },
+          ...addStuffState.chatHistory.slice(-10)
+        ]
+      })
+    });
+
+    removeAddThinkingMessage();
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const reply = data.choices?.[0]?.message?.content || "I'm not sure how to help with that.";
+
+    addAddChatMessage(reply, 'assistant');
+    addStuffState.chatHistory.push({ role: 'assistant', content: reply });
+
+  } catch (err) {
+    console.error('Add conversation error:', err);
+    removeAddThinkingMessage();
+    addAddChatMessage(`Error: ${err.message}`, 'assistant');
+  }
+}
+
+// Save inventory items to Drive
+async function saveInventoryItems(newCategory = null) {
+  if (addStuffState.detectedItems.length === 0) {
+    addAddChatMessage('No items to save.', 'assistant');
+    return;
+  }
+
+  const box = addStuffState.selectedBox;
+  if (!box) {
+    addAddChatMessage('Please specify a box number first.', 'assistant');
+    return;
+  }
+
+  addAddChatMessage('Saving to Google Drive...', 'thinking');
+
+  try {
+    // Upload photos first
+    const uploadedPhotos = [];
+    for (let i = 0; i < addStuffState.pendingPhotos.length; i++) {
+      const photo = addStuffState.pendingPhotos[i];
+      const viewLetter = String.fromCharCode(97 + i); // a, b, c...
+      const filename = `${box}${viewLetter}.jpg`;
+
+      // Convert data URL to blob
+      const response = await fetch(photo.dataUrl);
+      const blob = await response.blob();
+
+      const uploaded = await DriveStorage.uploadPhoto(blob, filename);
+      uploadedPhotos.push({
+        file: filename,
+        driveId: uploaded.id,
+        box: box,
+        view: viewLetter,
+        category: newCategory || addStuffState.detectedItems[0]?.category || 'Tools'
+      });
+    }
+
+    // Update photosets
+    const currentPhotosets = await DriveStorage.loadPhotosets() || [];
+    const updatedPhotosets = [...currentPhotosets, ...uploadedPhotos];
+    await DriveStorage.savePhotosets(updatedPhotosets);
+
+    // Create inventory items
+    const currentInventory = await DriveStorage.loadInventory() || [];
+    const photoSetRef = uploadedPhotos.map(p => p.file.replace('.jpg', '')).join('/');
+    const category = uploadedPhotos[0]?.category || 'Tools';
+
+    const newItems = addStuffState.detectedItems.map((item, idx) => ({
+      id: `${box}${uploadedPhotos[0]?.view || 'a'}${idx + 1}`,
+      category: category,
+      photoSet: photoSetRef,
+      item: item.item,
+      brand: item.brand || 'Unknown',
+      model: item.model || '',
+      type: item.type || '',
+      notes: ''
+    }));
+
+    const updatedInventory = [...currentInventory, ...newItems];
+    await DriveStorage.saveInventory(updatedInventory);
+
+    // Update local state
+    photoSets = updatedPhotosets;
+    inventory = updatedInventory;
+    renderPhotoGrid();
+
+    removeAddThinkingMessage();
+    addAddChatMessage(`Saved ${newItems.length} item${newItems.length > 1 ? 's' : ''} to Box ${box}!`, 'assistant');
+
+    // Clear state for next batch
+    clearAddStuffState();
+
+  } catch (err) {
+    console.error('Save error:', err);
+    removeAddThinkingMessage();
+    addAddChatMessage(`Error saving: ${err.message}`, 'assistant');
+  }
+}
+
+// Add message to Add Stuff chat
+function addAddChatMessage(content, role) {
+  const container = document.getElementById('add-chat-messages');
+  const welcome = container.querySelector('.chat-welcome');
+  if (welcome) welcome.remove();
+
+  const div = document.createElement('div');
+  div.className = `chat-message ${role}`;
+  div.textContent = content;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+// Remove thinking message from Add Stuff chat
+function removeAddThinkingMessage() {
+  const container = document.getElementById('add-chat-messages');
+  const thinking = container.querySelector('.chat-message.thinking');
+  if (thinking) thinking.remove();
+}
+
+// Clear Add Stuff chat and state
+function clearAddStuffChat() {
+  clearAddStuffState();
+  document.getElementById('add-chat-messages').innerHTML = `
+    <div class="chat-welcome">
+      <p>Let's add some tools to your inventory!</p>
+      <p class="ai-examples">Tap the camera button to take a photo, or type what you want to add.</p>
+    </div>
+  `;
+}
+
+// Clear just the state
+function clearAddStuffState() {
+  addStuffState.pendingPhotos = [];
+  addStuffState.detectedItems = [];
+  addStuffState.selectedBox = null;
+  addStuffState.chatHistory = [];
+  document.getElementById('pending-photos').innerHTML = '';
+  document.getElementById('detected-items').innerHTML = '';
 }
 
 // Register service worker

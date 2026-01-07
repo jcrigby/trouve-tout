@@ -778,6 +778,168 @@ header {
   border-top: 1px solid var(--border);
 }
 
+/* Add Stuff Mode */
+#add-stuff-mode {
+  text-align: center;
+}
+
+#add-not-connected .ai-examples {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: 1.5rem;
+}
+
+#add-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+#add-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+#add-input::placeholder {
+  color: var(--text-secondary);
+}
+
+/* Media button (camera icon) */
+.chat-media-btn {
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.chat-media-btn:hover,
+.chat-media-btn:active {
+  background: var(--accent);
+  color: white;
+}
+
+/* Pending photos strip */
+.pending-photos {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  overflow-x: auto;
+  background: var(--bg-primary);
+  min-height: 0;
+}
+
+.pending-photos:empty {
+  display: none;
+}
+
+.pending-photo {
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid var(--border);
+  flex-shrink: 0;
+}
+
+.pending-photo.analyzing {
+  opacity: 0.5;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+/* Detected items chips */
+.detected-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--bg-primary);
+  min-height: 0;
+}
+
+.detected-items:empty {
+  display: none;
+}
+
+.item-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-card);
+  border: 2px solid var(--border);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.item-chip:hover,
+.item-chip:active {
+  border-color: var(--accent);
+}
+
+.item-chip.confirmed {
+  border-color: #4caf50;
+}
+
+.item-chip-text {
+  color: var(--text-primary);
+}
+
+.item-chip-remove {
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.item-chip-remove:hover {
+  color: var(--accent);
+}
+
+/* Settings advanced section */
+.settings-advanced {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.settings-advanced summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.settings-advanced summary:hover {
+  color: var(--text-primary);
+}
+
+#add-clear-btn {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  padding: 0.5rem 1rem;
+  display: inline-block;
+  width: auto;
+}
+
 /* Responsive */
 @media (min-width: 600px) {
   .photo-grid {

@@ -19,6 +19,7 @@
     <button class="tab active" data-mode="photos">Browse Photos</button>
     <button class="tab" data-mode="search">Text Search</button>
     <button class="tab" data-mode="ask-ai">Ask AI</button>
+    <button class="tab" data-mode="add-stuff">+ Add Stuff</button>
   </nav>
 
   <main>
@@ -72,6 +73,47 @@
         <button class="action-btn secondary" id="ai-clear-btn">Clear Chat</button>
       </div>
     </section>
+
+    <!-- Add Stuff Mode -->
+    <section id="add-stuff-mode" class="mode-content">
+      <div id="add-not-connected">
+        <p class="instructions">Add photos and inventory items with AI assistance</p>
+        <p class="ai-examples">Take photos of your tools and let AI identify them</p>
+        <button class="action-btn" id="connect-google-btn">Connect with Google Drive</button>
+        <p class="ai-note">Your photos and data are stored in your Google Drive</p>
+        <div id="add-openrouter-prompt" style="margin-top: 1rem; display: none;">
+          <p class="ai-note">Also connect OpenRouter for AI-powered tool identification:</p>
+          <button class="action-btn secondary" id="add-connect-openrouter-btn">Connect OpenRouter</button>
+        </div>
+      </div>
+      <div id="add-connected" style="display: none;">
+        <div class="chat-container" id="add-chat-container">
+          <div class="chat-messages" id="add-chat-messages">
+            <div class="chat-welcome">
+              <p>Let's add some tools to your inventory!</p>
+              <p class="ai-examples">Tap the camera button to take a photo, or type what you want to add.</p>
+            </div>
+          </div>
+          <div id="pending-photos" class="pending-photos"></div>
+          <div id="detected-items" class="detected-items"></div>
+          <div class="chat-input-area">
+            <input type="file" id="add-photo-input" accept="image/*" capture="environment" multiple style="display:none">
+            <button class="chat-media-btn" id="add-photo-btn" title="Add photo">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M12 12c-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4-1.79-4-4-4zm0 6c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm6-10h-3.17L13.41 6.59C13.04 6.22 12.53 6 12 6H8c-.53 0-1.04.22-1.41.59L5.17 8H2C.9 8 0 8.9 0 10v10c0 1.1.9 2 2 2h20c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2z"/>
+              </svg>
+            </button>
+            <input type="text" id="add-input" placeholder="Describe what you're adding..." autocomplete="off">
+            <button class="chat-send-btn" id="add-send-btn">
+              <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <button class="action-btn secondary" id="add-clear-btn">Start Over</button>
+      </div>
+    </section>
   </main>
 
   <!-- Photo Modal -->
@@ -100,22 +142,43 @@
     <div class="modal-content">
       <a href="#" class="modal-home">Trouvé-tout</a>
       <h2>Settings</h2>
+
       <div class="settings-section">
-        <label for="github-pat-input">GitHub Personal Access Token</label>
-        <p class="settings-note">Required to add photos. Create at GitHub → Settings → Developer Settings → Personal Access Tokens</p>
-        <input type="password" id="github-pat-input" placeholder="ghp_xxxxxxxxxxxx">
-        <button class="action-btn" id="save-pat-btn">Save Token</button>
-        <p id="pat-status" class="settings-status"></p>
+        <label>Google Drive</label>
+        <p class="settings-note">Store your photos and inventory in Google Drive</p>
+        <button class="action-btn" id="settings-connect-google-btn">Connect Google Drive</button>
+        <button class="action-btn secondary" id="google-disconnect-btn" style="display:none">Disconnect</button>
+        <p id="google-status" class="settings-status"></p>
       </div>
+
+      <div class="settings-section">
+        <label>OpenRouter AI</label>
+        <p class="settings-note">Powers the Ask AI and photo identification features</p>
+        <button class="action-btn" id="settings-connect-openrouter-btn">Connect OpenRouter</button>
+        <button class="action-btn secondary" id="settings-openrouter-disconnect-btn" style="display:none">Disconnect</button>
+        <p id="openrouter-status" class="settings-status"></p>
+      </div>
+
       <div class="settings-section">
         <label>Sync Data</label>
-        <p class="settings-note">Reload inventory and photos from GitHub</p>
+        <p class="settings-note">Reload inventory and photos</p>
         <button class="action-btn secondary" id="sync-btn">Sync Now</button>
         <p id="sync-status" class="settings-status"></p>
       </div>
+
+      <details class="settings-advanced">
+        <summary>Developer Options</summary>
+        <div class="settings-section">
+          <label for="github-pat-input">GitHub Personal Access Token</label>
+          <p class="settings-note">For developers: direct GitHub repo access</p>
+          <input type="password" id="github-pat-input" placeholder="ghp_xxxxxxxxxxxx">
+          <button class="action-btn secondary" id="save-pat-btn">Save Token</button>
+          <p id="pat-status" class="settings-status"></p>
+        </div>
+      </details>
     </div>
   </div>
 
-  <script src="js/app.js?v=49"></script>
+  <script src="js/app.js?v=50"></script>
 </body>
 </html>
