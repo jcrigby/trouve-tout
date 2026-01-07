@@ -106,62 +106,38 @@ async function loadPhotoSets() {
     // Try Google Drive first
     if (DriveStorage.isConnected()) {
       const driveData = await DriveStorage.loadPhotosets();
-      if (driveData && driveData.length > 0) {
+      if (driveData) {
         photoSets = driveData;
-        console.log('Loaded photosets from Google Drive');
+        console.log('Loaded photosets from Google Drive:', photoSets.length);
         return;
       }
     }
 
-    // Try GitHub API
-    const pat = getGitHubPAT();
-    if (pat) {
-      const fileInfo = await getFileFromGitHub('data/photosets.json');
-      if (fileInfo && fileInfo.content) {
-        photoSets = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
-        console.log('Loaded photosets from GitHub API');
-        return;
-      }
-    }
-
-    // Fall back to static file
-    const response = await fetch('data/photosets.json');
-    photoSets = await response.json();
-    console.log('Loaded photosets from static file');
+    // No data source available - start with empty
+    console.log('No photosets data source available');
+    photoSets = [];
   } catch (err) {
     console.error('Failed to load photosets:', err);
     photoSets = [];
   }
 }
 
-// Load inventory data (from Drive, GitHub API, or static file)
+// Load inventory data (from Drive)
 async function loadInventory() {
   try {
-    // Try Google Drive first
+    // Try Google Drive
     if (DriveStorage.isConnected()) {
       const driveData = await DriveStorage.loadInventory();
-      if (driveData && driveData.length > 0) {
+      if (driveData) {
         inventory = driveData;
-        console.log('Loaded inventory from Google Drive');
+        console.log('Loaded inventory from Google Drive:', inventory.length);
         return;
       }
     }
 
-    // Try GitHub API
-    const pat = getGitHubPAT();
-    if (pat) {
-      const fileInfo = await getFileFromGitHub('data/inventory.json');
-      if (fileInfo && fileInfo.content) {
-        inventory = JSON.parse(atob(fileInfo.content.replace(/\n/g, '')));
-        console.log('Loaded inventory from GitHub API');
-        return;
-      }
-    }
-
-    // Fall back to static file
-    const response = await fetch('data/inventory.json');
-    inventory = await response.json();
-    console.log('Loaded inventory from static file');
+    // No data source available - start with empty
+    console.log('No inventory data source available');
+    inventory = [];
   } catch (err) {
     console.error('Failed to load inventory:', err);
     inventory = [];
