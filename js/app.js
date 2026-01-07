@@ -1834,7 +1834,18 @@ async function handleAddMessage(message) {
   addAddChatMessage(message, 'user');
   addStuffState.chatHistory.push({ role: 'user', content: message });
 
-  // Check for box selection
+  const lowerMsg = message.toLowerCase();
+
+  // Check for "add X to box N" pattern (adding without photos)
+  const addToBoxMatch = message.match(/add\s+(.+?)\s+to\s+box\s*(\d+)/i);
+  if (addToBoxMatch) {
+    const itemName = addToBoxMatch[1].trim();
+    const boxNum = parseInt(addToBoxMatch[2]);
+    await addItemWithoutPhoto(itemName, boxNum);
+    return;
+  }
+
+  // Check for box selection when we have pending items
   const boxMatch = message.match(/box\s*(\d+)/i);
   if (boxMatch && addStuffState.detectedItems.length > 0) {
     addStuffState.selectedBox = parseInt(boxMatch[1]);
@@ -1844,7 +1855,6 @@ async function handleAddMessage(message) {
 
   // If we have detected items, check for confirmation
   if (addStuffState.detectedItems.length > 0) {
-    const lowerMsg = message.toLowerCase();
     if (lowerMsg.includes('yes') || lowerMsg.includes('correct') || lowerMsg.includes('right') || lowerMsg.includes('good') || lowerMsg.includes('perfect')) {
       // Confirm all items
       addStuffState.detectedItems.forEach(item => item.confirmed = true);
@@ -1867,6 +1877,47 @@ async function handleAddMessage(message) {
 
   // Otherwise, use AI to continue conversation
   await continueAddConversation(message);
+}
+
+// Add item without photo to existing box
+async function addItemWithoutPhoto(itemName, boxNum) {
+  // Find an existing photoset for this box to get category
+  const existingPhoto = photoSets.find(p => p.box === boxNum);
+  if (!existingPhoto) {
+    addAddChatMessage(`Box ${boxNum} doesn't exist yet. Take a photo first to create the box, or use a different box number.`, 'assistant');
+    return;
+  }
+
+  // Generate a unique ID
+  const boxItems = inventory.filter(i => i.photoSet.startsWith(String(boxNum)));
+  const nextSeq = boxItems.length + 1;
+  const newId = `${boxNum}a${nextSeq}`;
+
+  // Create the new item
+  const newItem = {
+    id: newId,
+    category: existingPhoto.category,
+    photoSet: existingPhoto.file.replace('.jpg', ''),
+    item: itemName,
+    brand: 'Unknown',
+    model: '',
+    type: '',
+    notes: ''
+  };
+
+  // Add to inventory
+  inventory.push(newItem);
+
+  // Save to Drive
+  try {
+    await DriveStorage.saveInventory(inventory);
+    addAddChatMessage(`Added "${itemName}" to Box ${boxNum}!`, 'assistant');
+  } catch (err) {
+    console.error('Failed to save:', err);
+    addAddChatMessage(`Error saving: ${err.message}`, 'assistant');
+    // Remove from local inventory on failure
+    inventory.pop();
+  }
 }
 
 // Continue Add Stuff conversation with AI
@@ -2042,7 +2093,7 @@ function clearAddStuffChat() {
   document.getElementById('add-chat-messages').innerHTML = `
     <div class="chat-welcome">
       <p>Let's add some tools to your inventory!</p>
-      <p class="ai-examples">Tap the camera button to take a photo, or type what you want to add.</p>
+      <p class="ai-examples">Take a photo, or type "add hammer to box 2"</p>
     </div>
   `;
 }
