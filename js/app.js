@@ -271,6 +271,16 @@ function setupEventListeners() {
     }
   });
 
+  // Edit item button
+  document.getElementById('edit-item-btn').addEventListener('click', () => {
+    editCurrentItem();
+  });
+
+  // Delete item button
+  document.getElementById('delete-item-btn').addEventListener('click', () => {
+    deleteCurrentItem();
+  });
+
   // Show box contents button
   document.getElementById('show-box-contents-btn').addEventListener('click', () => {
     if (currentBoxNumber) {
@@ -430,12 +440,16 @@ function handleSwipe() {
   }
 }
 
+// Currently displayed item for editing
+let currentItem = null;
+
 // Show item detail modal
 function showItemModal(item) {
+  currentItem = item;
   document.getElementById('item-name').textContent = item.item;
 
   const photos = item.photoSet.split('/');
-  const box = photos[0].replace(/[ab]/g, '');
+  const box = photos[0].replace(/[a-z]/g, '');
 
   document.getElementById('item-details').innerHTML = `
     <p><strong>Brand:</strong> ${item.brand || 'Unknown'}</p>
@@ -446,11 +460,94 @@ function showItemModal(item) {
     <p><strong>Box:</strong> ${box}</p>
   `;
 
-  document.getElementById('item-photos').innerHTML = photos.map(p =>
-    `<img src="images/${p}.jpg" alt="Box ${box}" loading="lazy">`
-  ).join('');
+  // Show photos from Drive if available
+  const photoSet = photoSets.find(p => photos.includes(p.file.replace('.jpg', '')));
+  if (photoSet && photoSet.driveId) {
+    document.getElementById('item-photos').innerHTML = photos.map(p => {
+      const ps = photoSets.find(ps => ps.file === `${p}.jpg`);
+      const src = ps && ps.driveId
+        ? `https://drive.google.com/thumbnail?id=${ps.driveId}&sz=w400`
+        : `images/${p}.jpg`;
+      return `<img src="${src}" alt="Box ${box}" loading="lazy">`;
+    }).join('');
+  } else {
+    document.getElementById('item-photos').innerHTML = photos.map(p =>
+      `<img src="images/${p}.jpg" alt="Box ${box}" loading="lazy">`
+    ).join('');
+  }
+
+  // Show edit/delete buttons if connected to Drive
+  const actionsDiv = document.getElementById('item-actions');
+  if (DriveStorage.isConnected()) {
+    actionsDiv.style.display = 'block';
+  } else {
+    actionsDiv.style.display = 'none';
+  }
 
   itemModal.classList.add('active');
+}
+
+// Edit current item
+async function editCurrentItem() {
+  if (!currentItem) return;
+
+  const newName = prompt('Item name:', currentItem.item);
+  if (newName === null) return;
+
+  const newBrand = prompt('Brand:', currentItem.brand || '');
+  if (newBrand === null) return;
+
+  const newModel = prompt('Model:', currentItem.model || '');
+  if (newModel === null) return;
+
+  const newType = prompt('Type (e.g., cordless, manual, pneumatic):', currentItem.type || '');
+  if (newType === null) return;
+
+  const newNotes = prompt('Notes:', currentItem.notes || '');
+  if (newNotes === null) return;
+
+  // Update the item
+  currentItem.item = newName;
+  currentItem.brand = newBrand;
+  currentItem.model = newModel;
+  currentItem.type = newType;
+  currentItem.notes = newNotes;
+
+  // Save to Drive
+  try {
+    await DriveStorage.saveInventory(inventory);
+    alert('Item updated!');
+    itemModal.classList.remove('active');
+    performSearch(); // Refresh results
+  } catch (err) {
+    console.error('Failed to save:', err);
+    alert('Failed to save: ' + err.message);
+  }
+}
+
+// Delete current item
+async function deleteCurrentItem() {
+  if (!currentItem) return;
+
+  if (!confirm(`Delete "${currentItem.item}"?`)) return;
+
+  // Remove from inventory
+  const idx = inventory.findIndex(i => i.id === currentItem.id);
+  if (idx !== -1) {
+    inventory.splice(idx, 1);
+  }
+
+  // Save to Drive
+  try {
+    await DriveStorage.saveInventory(inventory);
+    alert('Item deleted!');
+    currentItem = null;
+    itemModal.classList.remove('active');
+    performSearch(); // Refresh results
+  } catch (err) {
+    console.error('Failed to delete:', err);
+    alert('Failed to delete: ' + err.message);
+  }
 }
 
 // Perform search
