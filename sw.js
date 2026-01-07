@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v51';
+const CACHE_NAME = 'trouve-tout-v52';
 const ASSETS = [
   '/',
   '/index.html',

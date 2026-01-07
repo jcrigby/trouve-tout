@@ -88,11 +88,11 @@ async function init() {
   populateCategories();
 
   // Switch to appropriate tab after OAuth
-  if (switchToTab === 'ask-ai') {
+  if (switchToTab) {
     tabs.forEach(t => t.classList.remove('active'));
-    document.querySelector('[data-mode="ask-ai"]').classList.add('active');
+    document.querySelector(`[data-mode="${switchToTab}"]`).classList.add('active');
     modeContents.forEach(content => {
-      content.classList.toggle('active', content.id === 'ask-ai-mode');
+      content.classList.toggle('active', content.id === `${switchToTab}-mode`);
     });
   }
 
@@ -672,15 +672,28 @@ const DriveStorage = {
     const code = urlParams.get('code');
     const error = urlParams.get('error');
 
-    // Check if this is a Google callback (has code but no OpenRouter verifier active)
-    if (!code || sessionStorage.getItem('openrouter_code_verifier')) {
+    console.log('Google OAuth callback check:', { code: !!code, error, hasGoogleVerifier: !!sessionStorage.getItem('google_code_verifier'), hasOpenRouterVerifier: !!sessionStorage.getItem('openrouter_code_verifier') });
+
+    // Handle OAuth errors
+    if (error) {
+      console.error('Google OAuth error from redirect:', error, urlParams.get('error_description'));
+      sessionStorage.removeItem('google_code_verifier');
+      return false;
+    }
+
+    // Check if this is a Google callback (has code AND has google verifier AND no OpenRouter verifier)
+    if (!code) {
       return false;
     }
 
     const codeVerifier = sessionStorage.getItem('google_code_verifier');
     if (!codeVerifier) {
+      console.log('No Google code verifier found, not a Google callback');
       return false;
     }
+
+    // This is a Google callback
+    console.log('Processing Google OAuth callback, redirect_uri:', CALLBACK_URL);
 
     try {
       const response = await fetch(GOOGLE_TOKEN_URL, {
@@ -695,12 +708,13 @@ const DriveStorage = {
         })
       });
 
+      const data = await response.json();
+      console.log('Google token response:', response.ok ? 'success' : 'failed', data.error || '');
+
       if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error_description || 'Token exchange failed');
+        throw new Error(data.error_description || data.error || 'Token exchange failed');
       }
 
-      const data = await response.json();
       localStorage.setItem('google_access_token', data.access_token);
       if (data.refresh_token) {
         localStorage.setItem('google_refresh_token', data.refresh_token);
@@ -710,9 +724,11 @@ const DriveStorage = {
       sessionStorage.removeItem('google_code_verifier');
       window.history.replaceState({}, document.title, CALLBACK_URL);
 
+      console.log('Google Drive connected successfully!');
       return true;
     } catch (err) {
-      console.error('Google OAuth error:', err);
+      console.error('Google OAuth token exchange error:', err);
+      sessionStorage.removeItem('google_code_verifier');
       return false;
     }
   },
