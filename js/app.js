@@ -13,10 +13,8 @@ const OPENROUTER_TOKEN_URL = 'https://openrouter.ai/api/v1/auth/keys';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const CALLBACK_URL = window.location.origin + window.location.pathname;
 
-// Google Drive OAuth config
+// Google Drive config (using Google Identity Services)
 const GOOGLE_CLIENT_ID = '339196755594-oajh6pqn0o178o9ipsvg7d7r86dg2sv5.apps.googleusercontent.com';
-const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const GOOGLE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
@@ -634,10 +632,14 @@ function disconnect() {
 const DriveStorage = {
   FOLDER_NAME: 'Trouve-Tout',
   folderId: null,
+  tokenClient: null,
 
   // Check if connected to Google Drive
   isConnected() {
-    return !!localStorage.getItem('google_access_token');
+    const token = localStorage.getItem('google_access_token');
+    const expiry = localStorage.getItem('google_token_expiry');
+    // Check if token exists and hasn't expired
+    return token && expiry && Date.now() < parseInt(expiry);
   },
 
   // Get access token
@@ -645,137 +647,83 @@ const DriveStorage = {
     return localStorage.getItem('google_access_token');
   },
 
-  // Start Google OAuth flow with PKCE
-  async startAuthFlow() {
-    const codeVerifier = generateCodeVerifier();
-    sessionStorage.setItem('google_code_verifier', codeVerifier);
+  // Initialize the Google Identity Services token client
+  initTokenClient() {
+    if (this.tokenClient) return;
 
-    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    if (typeof google === 'undefined' || !google.accounts) {
+      console.error('Google Identity Services not loaded yet');
+      return;
+    }
 
-    const params = new URLSearchParams({
+    this.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
-      redirect_uri: CALLBACK_URL,
-      response_type: 'code',
       scope: GOOGLE_SCOPE,
-      code_challenge: codeChallenge,
-      code_challenge_method: 'S256',
-      access_type: 'offline',
-      prompt: 'consent'
+      callback: (tokenResponse) => {
+        if (tokenResponse.error) {
+          console.error('Google OAuth error:', tokenResponse.error);
+          return;
+        }
+
+        // Store the token
+        localStorage.setItem('google_access_token', tokenResponse.access_token);
+        localStorage.setItem('google_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+
+        console.log('Google Drive connected successfully!');
+
+        // Update UI
+        updateGoogleConnectionUI();
+        updateAddStuffUI();
+
+        // Switch to Add Stuff tab
+        const tabs = document.querySelectorAll('.tab');
+        const modeContents = document.querySelectorAll('.mode-content');
+        tabs.forEach(t => t.classList.remove('active'));
+        document.querySelector('[data-mode="add-stuff"]').classList.add('active');
+        modeContents.forEach(content => {
+          content.classList.toggle('active', content.id === 'add-stuff-mode');
+        });
+      }
     });
-
-    window.location.href = `${GOOGLE_AUTH_URL}?${params.toString()}`;
   },
 
-  // Handle OAuth callback
+  // Start Google OAuth flow using Google Identity Services
+  async startAuthFlow() {
+    this.initTokenClient();
+
+    if (!this.tokenClient) {
+      alert('Google Sign-In is still loading. Please try again in a moment.');
+      return;
+    }
+
+    // Request an access token
+    this.tokenClient.requestAccessToken({ prompt: 'consent' });
+  },
+
+  // Handle OAuth callback - not needed with GIS (it uses popup/redirect handled internally)
   async handleCallback() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-
-    console.log('Google OAuth callback check:', { code: !!code, error, hasGoogleVerifier: !!sessionStorage.getItem('google_code_verifier'), hasOpenRouterVerifier: !!sessionStorage.getItem('openrouter_code_verifier') });
-
-    // Handle OAuth errors
-    if (error) {
-      console.error('Google OAuth error from redirect:', error, urlParams.get('error_description'));
-      sessionStorage.removeItem('google_code_verifier');
-      return false;
-    }
-
-    // Check if this is a Google callback (has code AND has google verifier AND no OpenRouter verifier)
-    if (!code) {
-      return false;
-    }
-
-    const codeVerifier = sessionStorage.getItem('google_code_verifier');
-    if (!codeVerifier) {
-      console.log('No Google code verifier found, not a Google callback');
-      return false;
-    }
-
-    // This is a Google callback
-    console.log('Processing Google OAuth callback, redirect_uri:', CALLBACK_URL);
-
-    try {
-      const response = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID,
-          code: code,
-          code_verifier: codeVerifier,
-          grant_type: 'authorization_code',
-          redirect_uri: CALLBACK_URL
-        })
-      });
-
-      const data = await response.json();
-      console.log('Google token response:', response.ok ? 'success' : 'failed', data.error || '');
-
-      if (!response.ok) {
-        throw new Error(data.error_description || data.error || 'Token exchange failed');
-      }
-
-      localStorage.setItem('google_access_token', data.access_token);
-      if (data.refresh_token) {
-        localStorage.setItem('google_refresh_token', data.refresh_token);
-      }
-      localStorage.setItem('google_token_expiry', Date.now() + (data.expires_in * 1000));
-
-      sessionStorage.removeItem('google_code_verifier');
-      window.history.replaceState({}, document.title, CALLBACK_URL);
-
-      console.log('Google Drive connected successfully!');
-      return true;
-    } catch (err) {
-      console.error('Google OAuth token exchange error:', err);
-      sessionStorage.removeItem('google_code_verifier');
-      return false;
-    }
+    // GIS handles callbacks internally, no manual handling needed
+    return false;
   },
 
-  // Refresh token if expired
+  // Check if token needs refresh (GIS tokens can't be refreshed, need to re-auth)
   async refreshTokenIfNeeded() {
-    const expiry = localStorage.getItem('google_token_expiry');
-    if (expiry && Date.now() < parseInt(expiry) - 60000) {
-      return true; // Token still valid (with 1 min buffer)
-    }
-
-    const refreshToken = localStorage.getItem('google_refresh_token');
-    if (!refreshToken) {
-      return false;
-    }
-
-    try {
-      const response = await fetch(GOOGLE_TOKEN_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          client_id: GOOGLE_CLIENT_ID,
-          refresh_token: refreshToken,
-          grant_type: 'refresh_token'
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error('Token refresh failed');
-      }
-
-      const data = await response.json();
-      localStorage.setItem('google_access_token', data.access_token);
-      localStorage.setItem('google_token_expiry', Date.now() + (data.expires_in * 1000));
-
+    if (this.isConnected()) {
       return true;
-    } catch (err) {
-      console.error('Token refresh error:', err);
-      this.disconnect();
-      return false;
     }
+    // Token expired, user needs to re-authenticate
+    return false;
   },
 
   // Disconnect from Google Drive
   disconnect() {
+    const token = localStorage.getItem('google_access_token');
+    if (token && google?.accounts?.oauth2) {
+      google.accounts.oauth2.revoke(token, () => {
+        console.log('Google token revoked');
+      });
+    }
     localStorage.removeItem('google_access_token');
-    localStorage.removeItem('google_refresh_token');
     localStorage.removeItem('google_token_expiry');
     localStorage.removeItem('google_drive_folder_id');
     this.folderId = null;
@@ -783,7 +731,10 @@ const DriveStorage = {
 
   // Make authenticated API request
   async apiRequest(url, options = {}) {
-    await this.refreshTokenIfNeeded();
+    const valid = await this.refreshTokenIfNeeded();
+    if (!valid) {
+      throw new Error('Google Drive session expired. Please reconnect.');
+    }
     const token = this.getAccessToken();
     if (!token) {
       throw new Error('Not connected to Google Drive');
