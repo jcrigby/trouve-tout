@@ -25,11 +25,6 @@ const MODELS = {
   chat: 'anthropic/claude-3-haiku'       // For general conversation
 };
 
-// GitHub config
-const GITHUB_OWNER = 'jcrigby';
-const GITHUB_REPO = 'trouve-tout';
-const GITHUB_API_URL = 'https://api.github.com';
-
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
 const searchInput = document.getElementById('search-input');
@@ -79,7 +74,7 @@ async function init() {
     switchToTab = 'ask-ai';
   }
 
-  // Load data (tries Drive first if connected, falls back to static/GitHub)
+  // Load data from Google Drive
   await loadPhotoSets();
   await loadInventory();
   renderPhotoGrid();
@@ -100,7 +95,7 @@ async function init() {
   updateAddStuffUI();
 }
 
-// Load photo sets data (from Drive, GitHub API, or static file)
+// Load photo sets data from Google Drive
 async function loadPhotoSets() {
   try {
     // Try Google Drive first
@@ -1441,200 +1436,15 @@ function setupAIEventListeners() {
   });
 }
 
-// ==================== GitHub Integration ====================
-
-// Get GitHub PAT from localStorage
-function getGitHubPAT() {
-  return localStorage.getItem('github_pat');
-}
-
-// Save GitHub PAT to localStorage
-function saveGitHubPAT(pat) {
-  localStorage.setItem('github_pat', pat);
-}
-
-// Check if GitHub is configured
-function isGitHubConfigured() {
-  return !!getGitHubPAT();
-}
-
-// Check if file exists on GitHub
-async function fileExistsOnGitHub(path) {
-  const pat = getGitHubPAT();
-  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
-
-  try {
-    const response = await fetch(url, {
-      headers: { 'Authorization': `token ${pat}` }
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
-
-// Get next available view letter for a box (checks GitHub)
-async function getNextViewLetter(boxNumber) {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz';
-
-  for (const letter of alphabet) {
-    const filename = `${boxNumber}${letter}.jpg`;
-    const exists = await fileExistsOnGitHub(`images/${filename}`);
-    if (!exists) {
-      return letter;
-    }
-  }
-  return 'z'; // fallback
-}
-
-// Commit a file to GitHub
-async function commitToGitHub(path, content, message) {
-  const pat = getGitHubPAT();
-  if (!pat) {
-    throw new Error('GitHub PAT not configured');
-  }
-
-  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `token ${pat}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message: message,
-      content: content, // must be base64 encoded
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || `GitHub API error: ${response.status}`);
-  }
-
-  return await response.json();
-}
-
-// Convert file to base64
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
-      const base64 = reader.result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-// Get file info from GitHub (including SHA for updates)
-async function getFileFromGitHub(path) {
-  const pat = getGitHubPAT();
-  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
-
-  const response = await fetch(url, {
-    headers: { 'Authorization': `token ${pat}` }
-  });
-
-  if (!response.ok) return null;
-  return await response.json();
-}
-
-// Update photosets.json on GitHub
-async function updatePhotoSetsOnGitHub(newEntry) {
-  const path = 'data/photosets.json';
-  const fileInfo = await getFileFromGitHub(path);
-
-  if (!fileInfo) {
-    throw new Error('Could not fetch photosets.json');
-  }
-
-  // Decode current content
-  const currentContent = JSON.parse(atob(fileInfo.content));
-  currentContent.push(newEntry);
-
-  // Encode updated content
-  const updatedContent = btoa(JSON.stringify(currentContent, null, 2));
-
-  const pat = getGitHubPAT();
-  const url = `${GITHUB_API_URL}/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${path}`;
-
-  const response = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `token ${pat}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      message: `Add ${newEntry.file} to photosets`,
-      content: updatedContent,
-      sha: fileInfo.sha
-    })
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to update photosets.json');
-  }
-}
-
-// Upload photo to GitHub
-async function uploadPhoto(file, boxNumber, category) {
-  const viewLetter = await getNextViewLetter(parseInt(boxNumber));
-  const filename = `${boxNumber}${viewLetter}.jpg`;
-  const path = `images/${filename}`;
-
-  const base64Content = await fileToBase64(file);
-  const message = `Add photo ${filename} for Box ${boxNumber}`;
-
-  // Upload the image
-  await commitToGitHub(path, base64Content, message);
-
-  // Update photosets.json
-  const newEntry = {
-    file: filename,
-    box: parseInt(boxNumber),
-    view: viewLetter,
-    category: category
-  };
-  await updatePhotoSetsOnGitHub(newEntry);
-
-  return { filename, boxNumber, viewLetter };
-}
-
 // Setup settings event listeners
 function setupSettingsEventListeners() {
   const settingsModal = document.getElementById('settings-modal');
 
   // Settings button
   document.getElementById('settings-btn').addEventListener('click', () => {
-    // Load current PAT if exists
-    const pat = getGitHubPAT();
-    if (pat) {
-      document.getElementById('github-pat-input').value = pat;
-      document.getElementById('pat-status').textContent = 'Token saved';
-      document.getElementById('pat-status').className = 'settings-status success';
-    }
-    // Update connection status displays
     updateGoogleConnectionUI();
     updateSettingsOpenRouterUI();
     settingsModal.classList.add('active');
-  });
-
-  // Save PAT button
-  document.getElementById('save-pat-btn').addEventListener('click', () => {
-    const pat = document.getElementById('github-pat-input').value.trim();
-    if (pat) {
-      saveGitHubPAT(pat);
-      document.getElementById('pat-status').textContent = 'Token saved!';
-      document.getElementById('pat-status').className = 'settings-status success';
-    } else {
-      document.getElementById('pat-status').textContent = 'Please enter a token';
-      document.getElementById('pat-status').className = 'settings-status error';
-    }
   });
 
   // Google Drive connect buttons (in settings and add-stuff mode)
