@@ -288,6 +288,11 @@ function setupEventListeners() {
     }
   });
 
+  // Delete photo button
+  document.getElementById('delete-photo-btn').addEventListener('click', () => {
+    deleteCurrentPhoto();
+  });
+
   // Show all inventory button
   document.getElementById('show-all-btn').addEventListener('click', () => {
     showAllInventory();
@@ -553,6 +558,56 @@ async function deleteCurrentItem() {
     performSearch(); // Refresh results
   } catch (err) {
     console.error('Failed to delete:', err);
+    alert('Failed to delete: ' + err.message);
+  }
+}
+
+// Delete current photo
+async function deleteCurrentPhoto() {
+  if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
+
+  const photo = photoSets[currentPhotoIndex];
+  if (!photo) return;
+
+  // Find items associated with this photo
+  const photoSetName = photo.file.replace('.jpg', '');
+  const associatedItems = inventory.filter(item =>
+    item.photoSet === photoSetName || item.photoSet.includes(photoSetName)
+  );
+
+  let confirmMsg = `Delete photo "${photo.file}" (Box ${photo.box})?`;
+  if (associatedItems.length > 0) {
+    confirmMsg += `\n\nThis will also delete ${associatedItems.length} inventory item(s) associated with this photo.`;
+  }
+
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    // Delete photo file from Drive if it has a driveId
+    if (photo.driveId) {
+      await DriveStorage.deleteFile(photo.driveId);
+    }
+
+    // Remove from photoSets
+    photoSets.splice(currentPhotoIndex, 1);
+    await DriveStorage.savePhotosets(photoSets);
+
+    // Remove associated inventory items
+    if (associatedItems.length > 0) {
+      for (const item of associatedItems) {
+        const idx = inventory.findIndex(i => i.id === item.id);
+        if (idx !== -1) {
+          inventory.splice(idx, 1);
+        }
+      }
+      await DriveStorage.saveInventory(inventory);
+    }
+
+    alert('Photo deleted!');
+    photoModal.classList.remove('active');
+    renderPhotoGrid(); // Refresh grid
+  } catch (err) {
+    console.error('Failed to delete photo:', err);
     alert('Failed to delete: ' + err.message);
   }
 }
