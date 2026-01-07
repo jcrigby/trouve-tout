@@ -569,15 +569,36 @@ async function deleteCurrentPhoto() {
   const photo = photoSets[currentPhotoIndex];
   if (!photo) return;
 
-  // Find items associated with this photo
   const photoSetName = photo.file.replace('.jpg', '');
-  const associatedItems = inventory.filter(item =>
-    item.photoSet === photoSetName || item.photoSet.includes(photoSetName)
-  );
+
+  // Find items that reference this photo
+  // photoSet can be "3a" (single) or "3a/3b" (multiple photos)
+  const affectedItems = inventory.filter(item => {
+    const refs = item.photoSet.split('/');
+    return refs.includes(photoSetName);
+  });
+
+  // Categorize: items to delete vs items to update
+  const itemsToDelete = [];
+  const itemsToUpdate = [];
+
+  for (const item of affectedItems) {
+    const refs = item.photoSet.split('/');
+    if (refs.length === 1) {
+      // Only photo reference - item will be deleted
+      itemsToDelete.push(item);
+    } else {
+      // Multiple photo references - just remove this one
+      itemsToUpdate.push(item);
+    }
+  }
 
   let confirmMsg = `Delete photo "${photo.file}" (Box ${photo.box})?`;
-  if (associatedItems.length > 0) {
-    confirmMsg += `\n\nThis will also delete ${associatedItems.length} inventory item(s) associated with this photo.`;
+  if (itemsToDelete.length > 0) {
+    confirmMsg += `\n\n${itemsToDelete.length} item(s) will be deleted (only linked to this photo).`;
+  }
+  if (itemsToUpdate.length > 0) {
+    confirmMsg += `\n\n${itemsToUpdate.length} item(s) will be updated (linked to other photos too).`;
   }
 
   if (!confirm(confirmMsg)) return;
@@ -592,14 +613,26 @@ async function deleteCurrentPhoto() {
     photoSets.splice(currentPhotoIndex, 1);
     await DriveStorage.savePhotosets(photoSets);
 
-    // Remove associated inventory items
-    if (associatedItems.length > 0) {
-      for (const item of associatedItems) {
-        const idx = inventory.findIndex(i => i.id === item.id);
-        if (idx !== -1) {
-          inventory.splice(idx, 1);
-        }
+    // Handle inventory changes
+    let inventoryChanged = false;
+
+    // Delete items that only had this photo
+    for (const item of itemsToDelete) {
+      const idx = inventory.findIndex(i => i.id === item.id);
+      if (idx !== -1) {
+        inventory.splice(idx, 1);
+        inventoryChanged = true;
       }
+    }
+
+    // Update items that have other photos - remove this photo from their photoSet
+    for (const item of itemsToUpdate) {
+      const refs = item.photoSet.split('/').filter(r => r !== photoSetName);
+      item.photoSet = refs.join('/');
+      inventoryChanged = true;
+    }
+
+    if (inventoryChanged) {
       await DriveStorage.saveInventory(inventory);
     }
 
