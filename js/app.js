@@ -2011,11 +2011,24 @@ async function saveInventoryItems(newCategory = null) {
   addAddChatMessage('Saving to Google Drive...', 'thinking');
 
   try {
+    // Load existing photosets to find next available view letter
+    const currentPhotosets = await DriveStorage.loadPhotosets() || [];
+    const existingViews = currentPhotosets
+      .filter(p => p.box === box)
+      .map(p => p.view);
+
+    // Find next available letter (after existing ones)
+    let startIndex = 0;
+    if (existingViews.length > 0) {
+      const maxView = existingViews.sort().pop(); // Get highest letter
+      startIndex = maxView.charCodeAt(0) - 96; // 'a'=1, 'b'=2, etc.
+    }
+
     // Upload photos first
     const uploadedPhotos = [];
     for (let i = 0; i < addStuffState.pendingPhotos.length; i++) {
       const photo = addStuffState.pendingPhotos[i];
-      const viewLetter = String.fromCharCode(97 + i); // a, b, c...
+      const viewLetter = String.fromCharCode(97 + startIndex + i); // Continue from next available
       const filename = `${box}${viewLetter}.jpg`;
 
       // Convert data URL to blob
@@ -2032,8 +2045,7 @@ async function saveInventoryItems(newCategory = null) {
       });
     }
 
-    // Update photosets
-    const currentPhotosets = await DriveStorage.loadPhotosets() || [];
+    // Update photosets (reuse currentPhotosets loaded earlier)
     const updatedPhotosets = [...currentPhotosets, ...uploadedPhotos];
     await DriveStorage.savePhotosets(updatedPhotosets);
 
