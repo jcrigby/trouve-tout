@@ -4,8 +4,8 @@
   "description": "Where's my crap? - Tool inventory finder",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#121318",
-  "theme_color": "#121318",
+  "background_color": "#0a0a0f",
+  "theme_color": "#0a0a0f",
   "icons": [
     {
       "src": "images/1a.jpg",
