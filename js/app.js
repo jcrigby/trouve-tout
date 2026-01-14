@@ -74,6 +74,13 @@ async function init() {
     switchToTab = 'ask-ai';
   }
 
+  // Try to refresh Google token silently if we have a stored token (even if expired)
+  const hasStoredToken = localStorage.getItem('google_access_token');
+  if (hasStoredToken && !DriveStorage.isConnected()) {
+    console.log('Token expired, attempting silent refresh...');
+    await DriveStorage.refreshTokenIfNeeded();
+  }
+
   // Load data from Google Drive
   await loadPhotoSets();
   await loadInventory();
@@ -153,13 +160,11 @@ function renderPhotoGrid() {
   emptyState.style.display = 'none';
   photosContent.style.display = 'block';
 
-  // Render grid with placeholders first
+  // Render grid with loading skeletons
   photoGrid.innerHTML = photoSets.map(photo => {
-    // Use static path for non-Drive photos
-    const imgSrc = photo.driveId ? '' : `images/thumbs/${photo.file}`;
     return `
-      <div class="photo-card" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
-        <img src="${imgSrc}" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
+      <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
+        <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">${photo.file}</div>
       </div>
     `;
@@ -172,15 +177,21 @@ function renderPhotoGrid() {
 // Load images from Google Drive with authentication
 async function loadDriveImages() {
   const images = document.querySelectorAll('img[data-drive-id]');
-  for (const img of images) {
+
+  // Load all images in parallel for speed
+  const loadPromises = Array.from(images).map(async (img) => {
     const driveId = img.dataset.driveId;
-    if (!driveId) continue;
+    if (!driveId) {
+      img.closest('.photo-card')?.classList.remove('loading');
+      return;
+    }
 
     // Check cache first
     const cached = DriveStorage.imageCache.get(`${driveId}_thumb`);
     if (cached) {
       img.src = cached;
-      continue;
+      img.closest('.photo-card')?.classList.remove('loading');
+      return;
     }
 
     // Load from Drive
@@ -192,7 +203,10 @@ async function loadDriveImages() {
     } catch (err) {
       console.error('Failed to load image:', driveId, err);
     }
-  }
+    img.closest('.photo-card')?.classList.remove('loading');
+  });
+
+  await Promise.all(loadPromises);
 }
 
 // Populate category dropdown
@@ -923,13 +937,49 @@ const DriveStorage = {
     return false;
   },
 
-  // Check if token needs refresh (GIS tokens can't be refreshed, need to re-auth)
+  // Check if token needs refresh - attempt silent re-auth if expired
   async refreshTokenIfNeeded() {
     if (this.isConnected()) {
       return true;
     }
-    // Token expired, user needs to re-authenticate
-    return false;
+
+    // Token expired - try silent re-authentication
+    // This will work if user has previously granted consent
+    return new Promise((resolve) => {
+      this.initTokenClient();
+
+      if (!this.tokenClient) {
+        resolve(false);
+        return;
+      }
+
+      // Set up a one-time callback for this refresh attempt
+      const originalCallback = this.tokenClient.callback;
+      this.tokenClient.callback = async (tokenResponse) => {
+        // Restore original callback
+        this.tokenClient.callback = originalCallback;
+
+        if (tokenResponse.error) {
+          console.log('Silent refresh failed, user needs to reconnect');
+          resolve(false);
+          return;
+        }
+
+        // Store the new token
+        localStorage.setItem('google_access_token', tokenResponse.access_token);
+        localStorage.setItem('google_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
+        console.log('Token silently refreshed');
+        resolve(true);
+      };
+
+      // Request new token without consent prompt (silent if already authorized)
+      try {
+        this.tokenClient.requestAccessToken({ prompt: '' });
+      } catch (err) {
+        console.log('Silent refresh error:', err);
+        resolve(false);
+      }
+    });
   },
 
   // Disconnect from Google Drive

@@ -348,6 +348,33 @@ header h1 a:active {
   background: transparent;
 }
 
+/* Loading skeleton for photo cards */
+.photo-card.loading {
+  background: linear-gradient(
+    110deg,
+    var(--bg-card-solid) 0%,
+    var(--bg-card-solid) 40%,
+    var(--bg-elevated) 50%,
+    var(--bg-card-solid) 60%,
+    var(--bg-card-solid) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.photo-card.loading::before {
+  opacity: 0;
+}
+
+.photo-card.loading img {
+  opacity: 0;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 /* ============================================
    SEARCH MODE - Glowing input
    ============================================ */
