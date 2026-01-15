@@ -84,6 +84,8 @@ async function init() {
   // Load data from Google Drive
   await loadPhotoSets();
   await loadInventory();
+  // Check if image cache is still valid for this folder
+  await DriveStorage.checkCacheValidity();
   renderPhotoGrid();
   populateCategories();
 
@@ -895,6 +897,8 @@ const DriveStorage = {
         try {
           await loadPhotoSets();
           await loadInventory();
+          // Check if image cache is for this folder (clear if different account)
+          await DriveStorage.checkCacheValidity();
           renderPhotoGrid();
           populateCategories();
           console.log(`Loaded ${photoSets.length} photos, ${inventory.length} items from Drive`);
@@ -1268,13 +1272,28 @@ const DriveStorage = {
     }
   },
 
-  // Clear image cache (call on disconnect)
+  // Clear image cache (only in-memory, keep IndexedDB for fast reload)
   clearImageCache() {
     for (const url of this.imageCache.values()) {
       URL.revokeObjectURL(url);
     }
     this.imageCache.clear();
-    this.clearDB();
+    // Don't clear IndexedDB - images are still valid for this account
+  },
+
+  // Clear IndexedDB if switching to different Drive folder
+  async checkCacheValidity() {
+    const cachedFolderId = localStorage.getItem('image_cache_folder_id');
+    const currentFolderId = localStorage.getItem('google_drive_folder_id');
+
+    if (cachedFolderId && currentFolderId && cachedFolderId !== currentFolderId) {
+      console.log('Different Drive folder detected, clearing image cache');
+      await this.clearDB();
+    }
+
+    if (currentFolderId) {
+      localStorage.setItem('image_cache_folder_id', currentFolderId);
+    }
   },
 
   // Delete a file from Drive
