@@ -1148,7 +1148,8 @@ const DriveStorage = {
   imageCache: new Map(),
 
   // Get photo as blob URL (fetches with auth, caches result)
-  async getPhotoBlobUrl(fileId, size = 'w800') {
+  // size: 'thumb' for grid view (~200px), 'full' for modal view
+  async getPhotoBlobUrl(fileId, size = 'full') {
     const cacheKey = `${fileId}_${size}`;
     if (this.imageCache.has(cacheKey)) {
       return this.imageCache.get(cacheKey);
@@ -1158,12 +1159,36 @@ const DriveStorage = {
       const token = this.getAccessToken();
       if (!token) return null;
 
-      // Fetch the thumbnail with authentication
-      const response = await fetch(
-        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-        {
-          headers: { 'Authorization': `Bearer ${token}` }
+      // For thumbnails, use Drive's built-in thumbnail generation
+      if (size === 'thumb') {
+        // Request file metadata with thumbnailLink
+        const metaResponse = await fetch(
+          `${GOOGLE_DRIVE_API}/files/${fileId}?fields=thumbnailLink`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+
+        if (metaResponse.ok) {
+          const meta = await metaResponse.json();
+          if (meta.thumbnailLink) {
+            // thumbnailLink is a public URL, fetch it and cache as blob
+            // Increase size from default 220px to 400px for better quality
+            const thumbUrl = meta.thumbnailLink.replace(/=s\d+$/, '=s400');
+            const thumbResponse = await fetch(thumbUrl);
+            if (thumbResponse.ok) {
+              const blob = await thumbResponse.blob();
+              const blobUrl = URL.createObjectURL(blob);
+              this.imageCache.set(cacheKey, blobUrl);
+              return blobUrl;
+            }
+          }
         }
+        // Fall through to full image if thumbnail fails
+      }
+
+      // For full images, fetch the complete file
+      const response = await fetch(
+        `${GOOGLE_DRIVE_API}/files/${fileId}?alt=media`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
       );
 
       if (!response.ok) {
