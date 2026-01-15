@@ -1144,21 +1144,106 @@ const DriveStorage = {
     return await response.json();
   },
 
-  // Cache for blob URLs
+  // Cache for blob URLs (in-memory, fast)
   imageCache: new Map(),
 
-  // Get photo as blob URL (fetches with auth, caches result)
+  // IndexedDB for persistent image cache
+  dbName: 'trouve-tout-images',
+  dbVersion: 1,
+  db: null,
+
+  // Open IndexedDB connection
+  async openDB() {
+    if (this.db) return this.db;
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(this.dbName, this.dbVersion);
+
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+
+      request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        if (!db.objectStoreNames.contains('images')) {
+          db.createObjectStore('images', { keyPath: 'id' });
+        }
+      };
+    });
+  },
+
+  // Get image from IndexedDB
+  async getFromDB(key) {
+    try {
+      const db = await this.openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction('images', 'readonly');
+        const store = tx.objectStore('images');
+        const request = store.get(key);
+        request.onsuccess = () => resolve(request.result?.blob || null);
+        request.onerror = () => resolve(null);
+      });
+    } catch {
+      return null;
+    }
+  },
+
+  // Save image to IndexedDB
+  async saveToDB(key, blob) {
+    try {
+      const db = await this.openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction('images', 'readwrite');
+        const store = tx.objectStore('images');
+        store.put({ id: key, blob, timestamp: Date.now() });
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch {
+      return false;
+    }
+  },
+
+  // Clear IndexedDB cache
+  async clearDB() {
+    try {
+      const db = await this.openDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction('images', 'readwrite');
+        const store = tx.objectStore('images');
+        store.clear();
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => resolve(false);
+      });
+    } catch {
+      return false;
+    }
+  },
+
+  // Get photo as blob URL (checks IndexedDB first, then fetches from Drive)
   async getPhotoBlobUrl(fileId, size = 'full') {
     const cacheKey = `${fileId}_${size}`;
+
+    // 1. Check in-memory cache (fastest)
     if (this.imageCache.has(cacheKey)) {
       return this.imageCache.get(cacheKey);
     }
 
+    // 2. Check IndexedDB (fast, persists across sessions)
+    const cachedBlob = await this.getFromDB(cacheKey);
+    if (cachedBlob) {
+      const blobUrl = URL.createObjectURL(cachedBlob);
+      this.imageCache.set(cacheKey, blobUrl);
+      return blobUrl;
+    }
+
+    // 3. Fetch from Drive (slow, but caches for next time)
     try {
       const token = this.getAccessToken();
       if (!token) return null;
 
-      // Fetch the image directly - Drive will serve it
       const response = await fetch(
         `${GOOGLE_DRIVE_API}/files/${fileId}?alt=media`,
         { headers: { 'Authorization': `Bearer ${token}` } }
@@ -1170,6 +1255,10 @@ const DriveStorage = {
       }
 
       const blob = await response.blob();
+
+      // Save to IndexedDB for next session
+      this.saveToDB(cacheKey, blob);
+
       const blobUrl = URL.createObjectURL(blob);
       this.imageCache.set(cacheKey, blobUrl);
       return blobUrl;
@@ -1185,6 +1274,7 @@ const DriveStorage = {
       URL.revokeObjectURL(url);
     }
     this.imageCache.clear();
+    this.clearDB();
   },
 
   // Delete a file from Drive
