@@ -167,7 +167,7 @@ function renderPhotoGrid() {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
         <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
-        <div class="label">${photo.file}</div>
+        <div class="label">${photo.category}</div>
       </div>
     `;
   }).join('');
