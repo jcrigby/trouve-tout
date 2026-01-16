@@ -1043,7 +1043,6 @@ header h1 a:active {
   margin-bottom: var(--space-sm);
 }
 
-#github-pat-input,
 #photo-box-select {
   width: 100%;
   padding: var(--space-sm) var(--space-md);
@@ -1055,7 +1054,6 @@ header h1 a:active {
   transition: all 0.3s ease;
 }
 
-#github-pat-input:focus,
 #photo-box-select:focus {
   outline: none;
   border-color: var(--accent);

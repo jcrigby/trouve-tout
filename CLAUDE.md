@@ -12,16 +12,16 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - PWA with service worker for offline use
 - Single page app
 - OpenRouter API for AI queries (OAuth PKCE flow)
-- GitHub API for photo/inventory management (via PAT)
+- Google Drive API for photo/inventory storage (OAuth)
 
-## Three Modes
+## Four Modes
 
 ### 1. Browse Photos (Visual Grep)
 - Shows all box photos in a grid
 - Tap a photo to see the box number and category
 - Swipe left/right to navigate between photos
 - "Show Box Contents" button shows inventory for that box
-- "Delete Photo" button removes photo (requires GitHub PAT)
+- "Delete Photo" button removes photo from Drive
 
 ### 2. Text Search
 - Type in search box to filter items by item name, brand, model, notes, or type
@@ -33,10 +33,17 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Uses OpenRouter OAuth PKCE (no backend needed)
 - Connects to Claude Haiku via OpenRouter API
 
-## Data
+### 4. Add Stuff
+- Chat-based interface for adding photos and inventory
+- AI-powered tool identification from photos (via OpenRouter)
+- Photos stored in Google Drive
 
-### Inventory File
-`data/inventory.json` — array of tool items
+## Data Storage
+
+All data is stored in the user's Google Drive in a "Trouve-Tout" folder:
+- `inventory.json` — array of tool items
+- `photosets.json` — array of photo metadata
+- Image files (JPG)
 
 ### Item Schema
 ```json
@@ -52,15 +59,14 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 }
 ```
 
-### PhotoSets File
-`data/photosets.json` — array of photo metadata (loaded at runtime)
-
+### PhotoSets Schema
 ```json
 {
   "file": "1a.jpg",
   "box": 1,
   "view": "a",
-  "category": "Nail Guns & Fasteners"
+  "category": "Nail Guns & Fasteners",
+  "driveId": "1abc123..."
 }
 ```
 
@@ -83,18 +89,10 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - **View letter** = different angles/perspectives (a, b, c, etc.)
 - Auto-assigned when uploading via the app
 
-### Adding Photos via App (Preferred)
-1. Configure GitHub PAT in Settings (gear icon)
-2. Tap "+ Add Photo" button
-3. Select box number, choose photo
-4. Optionally add inventory items
-5. Photo and metadata are committed directly to GitHub
-
-### Deleting Photos via App
-1. Tap photo to open modal
-2. Tap "Delete Photo" button
-3. Confirm deletion
-4. Removes image file and photosets.json entry
+### Image Caching
+- Images are cached in IndexedDB for fast loading on return visits
+- Cache persists across sessions
+- Only cleared when connecting to a different Google account
 
 ## File Structure
 ```
@@ -109,18 +107,13 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 │       └── auto-merge-claude.yml
 ├── css/
 │   └── style.css
-├── js/
-│   └── app.js               # Main app logic
-├── data/
-│   ├── inventory.json       # Inventory items
-│   └── photosets.json       # Photo metadata
-└── images/
-    └── {box}{view}.jpg      # Photo files
+└── js/
+    └── app.js               # Main app logic
 ```
 
 ## Service Worker Caching Strategy
-- **inventory.json, photosets.json**: Network-first (fetches fresh when online, cache offline)
-- **Other assets**: Stale-while-revalidate (serves cached, updates in background)
+- **App assets**: Stale-while-revalidate (serves cached, updates in background)
+- **Images**: Cached in IndexedDB (separate from service worker cache)
 - Bump `CACHE_NAME` version in sw.js when changing code
 
 ## Claude Workflow (Auto-Deploy)
@@ -157,21 +150,22 @@ git push -u origin claude/ship-{description}-{sessionId}
 
 ## External Integrations
 
+### Google Drive (Photo & Data Storage)
+- OAuth via Google Identity Services (GIS)
+- Access token stored in localStorage
+- Silent refresh attempted on token expiry
+- Used for: store photos, load/save inventory.json, load/save photosets.json
+
 ### OpenRouter (Ask AI)
 - OAuth PKCE flow for static sites
 - API key stored in localStorage
-- Uses Claude Haiku model
-
-### GitHub API (Photo Management)
-- Personal Access Token with `repo` scope
-- Stored in localStorage
-- Used for: upload photos, delete photos, update photosets.json, update inventory.json
+- Uses Claude Haiku for chat, Claude Sonnet for vision
 
 ## UI Notes
 - Keep it simple and fast
 - Large touch targets for mobile use in the shop
 - Dark mode friendly (often used in garage/basement)
-- No unnecessary animations or transitions
+- Glassmorphism and subtle glow effects for modern look
 
 ## Testing Environment
 - **Primary testing is on Chrome for iOS** (iPhone)

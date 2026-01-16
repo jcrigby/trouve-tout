@@ -22,36 +22,34 @@ Requires connecting to OpenRouter (free account).
 
 ## Setup
 
+### Google Drive (for photos & inventory)
+1. Tap the gear icon → **Connect Google Drive**
+2. Sign in with your Google account
+3. Authorize the app to access its own folder
+4. Your photos and inventory are stored in a "Trouve-Tout" folder in your Drive
+
 ### OpenRouter (for Ask AI)
 1. Go to the **Ask AI** tab
 2. Tap **Connect with OpenRouter**
 3. Sign in or create an account (free)
 4. Authorize the app
 
-### GitHub PAT (for adding/deleting photos)
-1. Go to GitHub → Settings → Developer Settings → Personal Access Tokens → Tokens (classic)
-2. Generate a new token with `repo` scope
-3. Tap the gear icon in the app
-4. Paste your token and tap **Save Token**
-
 ## Adding Photos
 
-1. Tap **+ Add Photo** on the Browse Photos tab
-2. Select a box number
-3. Choose a photo from your library or take a new one
-4. After upload, optionally add inventory items visible in the photo
-5. Tap **Done** when finished
+1. Go to the **+ Add Stuff** tab
+2. Tap the camera button to take or select a photo
+3. AI will identify tools in the photo (if OpenRouter connected)
+4. Confirm or edit the detected items
+5. Items are saved to your inventory
 
 ## Adding Inventory Items
 
-After uploading a photo, you can add items:
+You can add items with or without photos:
 - **Item Name** (required): e.g., "Belt Sander"
 - **Brand**: e.g., "DeWalt"
 - **Model**: e.g., "DW433"
 - **Type**: e.g., "electric", "pneumatic", "hand tool"
 - **Notes**: e.g., "In case", "needs new belt"
-
-Tap **Save Item**, then **Add Another Item** for more, or **Done** to finish.
 
 ## Deleting Photos
 
@@ -59,8 +57,6 @@ Tap **Save Item**, then **Add Another Item** for more, or **Done** to finish.
 2. Tap **Delete Photo**
 3. Confirm deletion
 
-Note: This deletes the photo from the repository. Inventory items referencing the photo are not automatically deleted.
-
 ## Offline Use
 
-The app works offline after first load. Inventory data syncs when you're back online.
+The app works offline after first load. Images are cached locally for fast loading on return visits.
