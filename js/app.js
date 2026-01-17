@@ -167,7 +167,10 @@ function renderPhotoGrid() {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
         <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
-        <div class="label">${photo.category || `Box ${photo.box}`}</div>
+        <div class="label">
+          <span class="label-category">${photo.category || `Box ${photo.box}`}</span>
+          ${photo.caption ? `<span class="label-caption">${photo.caption}</span>` : ''}
+        </div>
       </div>
     `;
   }).join('');
@@ -308,6 +311,11 @@ function setupEventListeners() {
     deleteCurrentPhoto();
   });
 
+  // Edit caption button
+  document.getElementById('edit-caption-btn').addEventListener('click', () => {
+    editPhotoCaption();
+  });
+
   // Show all inventory button
   document.getElementById('show-all-btn').addEventListener('click', () => {
     showAllInventory();
@@ -414,6 +422,23 @@ async function showPhotoModal(file, box, category, driveId) {
 
   modalImage.style.display = '';
   document.getElementById('modal-category').textContent = category;
+
+  // Display caption
+  const captionEl = document.getElementById('modal-caption');
+  const captionContainer = document.querySelector('.modal-caption-container');
+  if (photo && photo.caption) {
+    captionEl.textContent = photo.caption;
+    captionContainer.style.display = '';
+  } else {
+    captionEl.textContent = 'Add a caption...';
+    captionEl.style.fontStyle = 'italic';
+    captionContainer.style.display = '';
+  }
+
+  // Show edit button only if connected to Drive
+  const editCaptionBtn = document.getElementById('edit-caption-btn');
+  editCaptionBtn.style.display = DriveStorage.isConnected() ? '' : 'none';
+
   const boxContentsBtn = document.getElementById('show-box-contents-btn');
   boxContentsBtn.style.display = '';
   boxContentsBtn.textContent = 'Show Box Contents';
@@ -454,6 +479,16 @@ async function updatePhotoDisplay() {
 
   document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
   document.getElementById('modal-category').textContent = photo.category;
+
+  // Update caption
+  const captionEl = document.getElementById('modal-caption');
+  if (photo.caption) {
+    captionEl.textContent = photo.caption;
+    captionEl.style.fontStyle = 'normal';
+  } else {
+    captionEl.textContent = 'Add a caption...';
+    captionEl.style.fontStyle = 'italic';
+  }
 
   // Clear inventory list when navigating
   const existingList = photoModal.querySelector('.inventory-list');
@@ -672,6 +707,43 @@ async function deleteCurrentPhoto() {
   } catch (err) {
     console.error('Failed to delete photo:', err);
     alert('Failed to delete: ' + err.message);
+  }
+}
+
+// Edit photo caption
+async function editPhotoCaption() {
+  if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
+
+  const photo = photoSets[currentPhotoIndex];
+  if (!photo) return;
+
+  const currentCaption = photo.caption || '';
+  const newCaption = prompt('Enter caption for this photo:', currentCaption);
+
+  if (newCaption === null) return; // User cancelled
+
+  try {
+    // Update the caption
+    photo.caption = newCaption.trim();
+
+    // Save to Drive
+    await DriveStorage.savePhotosets(photoSets);
+
+    // Update the modal display
+    const captionEl = document.getElementById('modal-caption');
+    if (photo.caption) {
+      captionEl.textContent = photo.caption;
+      captionEl.style.fontStyle = 'normal';
+    } else {
+      captionEl.textContent = 'Add a caption...';
+      captionEl.style.fontStyle = 'italic';
+    }
+
+    // Refresh the grid to show updated caption
+    renderPhotoGrid();
+  } catch (err) {
+    console.error('Failed to save caption:', err);
+    alert('Failed to save caption: ' + err.message);
   }
 }
 

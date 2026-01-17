@@ -66,7 +66,8 @@ All data is stored in the user's Google Drive in a "Trouve-Tout" folder:
   "box": 1,
   "view": "a",
   "category": "Nail Guns & Fasteners",
-  "driveId": "1abc123..."
+  "driveId": "1abc123...",
+  "caption": "Top shelf nailers and staplers"
 }
 ```
 

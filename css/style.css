@@ -346,6 +346,24 @@ header h1 a:active {
   text-align: center;
   z-index: 2;
   background: transparent;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.photo-card .label-category {
+  font-weight: 600;
+}
+
+.photo-card .label-caption {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-style: italic;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Loading skeleton for photo cards */
@@ -683,6 +701,45 @@ header h1 a:active {
 
 .modal p {
   color: var(--text-secondary);
+}
+
+/* Modal caption container */
+.modal-caption-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.modal-caption {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
+.caption-edit-btn {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.caption-edit-btn:hover,
+.caption-edit-btn:active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-glow-sm);
 }
 
 #item-details {
