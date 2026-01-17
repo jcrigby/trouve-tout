@@ -148,6 +148,35 @@ async function loadInventory() {
   }
 }
 
+// Generate descriptive label for a photo based on its items
+function getPhotoLabel(photo) {
+  const photoRef = photo.file.replace('.jpg', '');
+
+  // Find items that reference this photo
+  const items = inventory.filter(item => {
+    const refs = item.photoSet.split('/');
+    return refs.includes(photoRef);
+  });
+
+  if (items.length === 0) {
+    return `Box ${photo.box}`;
+  }
+
+  // Get unique item names (simplified - remove brands/details)
+  const itemNames = items.map(i => i.item);
+
+  if (itemNames.length === 1) {
+    return itemNames[0];
+  }
+
+  if (itemNames.length <= 3) {
+    return itemNames.join(', ');
+  }
+
+  // More than 3 items - show first 2 and count
+  return `${itemNames.slice(0, 2).join(', ')} +${itemNames.length - 2}`;
+}
+
 // Render photo grid for visual browsing
 function renderPhotoGrid() {
   const emptyState = document.getElementById('photos-empty');
@@ -167,7 +196,7 @@ function renderPhotoGrid() {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
         <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
-        <div class="label">${photo.category || `Box ${photo.box}`}</div>
+        <div class="label">${getPhotoLabel(photo)}</div>
       </div>
     `;
   }).join('');
