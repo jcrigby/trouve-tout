@@ -316,6 +316,16 @@ function setupEventListeners() {
     editPhotoCaption();
   });
 
+  // Edit category button
+  document.getElementById('edit-category-btn').addEventListener('click', () => {
+    editPhotoCategory();
+  });
+
+  // AI category suggestion button
+  document.getElementById('ai-category-btn').addEventListener('click', () => {
+    suggestCategoryWithAI();
+  });
+
   // Show all inventory button
   document.getElementById('show-all-btn').addEventListener('click', () => {
     showAllInventory();
@@ -438,6 +448,12 @@ async function showPhotoModal(file, box, category, driveId) {
   // Show edit button only if connected to Drive
   const editCaptionBtn = document.getElementById('edit-caption-btn');
   editCaptionBtn.style.display = DriveStorage.isConnected() ? '' : 'none';
+
+  // Show category edit buttons only if connected to Drive
+  const editCategoryBtn = document.getElementById('edit-category-btn');
+  const aiCategoryBtn = document.getElementById('ai-category-btn');
+  editCategoryBtn.style.display = DriveStorage.isConnected() ? '' : 'none';
+  aiCategoryBtn.style.display = (DriveStorage.isConnected() && localStorage.getItem('openrouter_key')) ? '' : 'none';
 
   const boxContentsBtn = document.getElementById('show-box-contents-btn');
   boxContentsBtn.style.display = '';
@@ -744,6 +760,165 @@ async function editPhotoCaption() {
   } catch (err) {
     console.error('Failed to save caption:', err);
     alert('Failed to save caption: ' + err.message);
+  }
+}
+
+// Edit category for current photo
+async function editPhotoCategory(suggestedCategory = null) {
+  if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
+
+  const photo = photoSets[currentPhotoIndex];
+  if (!photo) return;
+
+  const currentCategory = photo.category || 'Tools';
+  const promptText = suggestedCategory
+    ? `AI suggests: "${suggestedCategory}"\n\nEdit category (or press OK to accept):`
+    : 'Enter category for this photo:';
+  const defaultValue = suggestedCategory || currentCategory;
+
+  const newCategory = prompt(promptText, defaultValue);
+
+  if (newCategory === null) return; // User cancelled
+  if (!newCategory.trim()) return; // Empty not allowed
+
+  try {
+    const trimmedCategory = newCategory.trim();
+
+    // Update the category
+    photo.category = trimmedCategory;
+
+    // Save to Drive
+    await DriveStorage.savePhotosets(photoSets);
+
+    // Update the modal display
+    document.getElementById('modal-category').textContent = trimmedCategory;
+
+    // Refresh the grid to show updated category
+    renderPhotoGrid();
+
+    // Check for other photos in the same box
+    const boxNum = photo.box;
+    const otherPhotosInBox = photoSets.filter(p => p.box === boxNum && p.file !== photo.file);
+
+    if (otherPhotosInBox.length > 0) {
+      const updateOthers = confirm(`Apply "${trimmedCategory}" to ${otherPhotosInBox.length} other photo(s) in Box ${boxNum}?`);
+      if (updateOthers) {
+        otherPhotosInBox.forEach(p => p.category = trimmedCategory);
+        await DriveStorage.savePhotosets(photoSets);
+        renderPhotoGrid();
+      }
+    }
+
+    // Also update matching inventory items if user wants
+    const boxItems = inventory.filter(item => {
+      const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+      return itemBox === String(boxNum);
+    });
+    if (boxItems.length > 0) {
+      const updateItems = confirm(`Update category for ${boxItems.length} inventory item(s) in Box ${boxNum} too?`);
+      if (updateItems) {
+        boxItems.forEach(item => item.category = trimmedCategory);
+        await DriveStorage.saveInventory(inventory);
+        populateCategories();
+      }
+    }
+  } catch (err) {
+    console.error('Failed to save category:', err);
+    alert('Failed to save category: ' + err.message);
+  }
+}
+
+// Suggest category using AI vision
+async function suggestCategoryWithAI() {
+  if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
+
+  const photo = photoSets[currentPhotoIndex];
+  if (!photo || !photo.driveId) {
+    alert('This photo is not available for AI analysis.');
+    return;
+  }
+
+  const apiKey = localStorage.getItem('openrouter_key');
+  if (!apiKey) {
+    alert('Please connect OpenRouter in Settings to use AI suggestions.');
+    return;
+  }
+
+  // Show loading state
+  const aiBtn = document.getElementById('ai-category-btn');
+  const originalText = aiBtn.innerHTML;
+  aiBtn.innerHTML = '...';
+  aiBtn.disabled = true;
+
+  try {
+    // Get the image as base64
+    const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    const dataUrl = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+
+    // Call vision API
+    const aiResponse = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'HTTP-Referer': CALLBACK_URL,
+        'X-Title': 'Trouve-Tout'
+      },
+      body: JSON.stringify({
+        model: MODELS.vision,
+        messages: [
+          {
+            role: 'system',
+            content: `You are helping categorize tool photos for an inventory app. Look at the image and suggest a short, descriptive category name (2-4 words) that describes what types of tools are shown.
+
+Examples of good category names:
+- "Nail Guns & Fasteners"
+- "Hand Tools & Misc"
+- "Sanders & Grinder"
+- "Saws & Grinders"
+- "Cordless Power Tools"
+- "Woodworking Clamps"
+- "Electrical Tools"
+
+Respond with ONLY the category name, nothing else.`
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'What category best describes the tools in this image?' },
+              { type: 'image_url', image_url: { url: dataUrl } }
+            ]
+          }
+        ],
+        max_tokens: 50
+      })
+    });
+
+    if (!aiResponse.ok) {
+      throw new Error(`API error: ${aiResponse.status}`);
+    }
+
+    const data = await aiResponse.json();
+    const suggestedCategory = data.choices?.[0]?.message?.content?.trim() || '';
+
+    if (suggestedCategory) {
+      // Call editPhotoCategory with the suggestion
+      editPhotoCategory(suggestedCategory);
+    } else {
+      alert('AI could not suggest a category. Please enter one manually.');
+    }
+  } catch (err) {
+    console.error('AI category suggestion failed:', err);
+    alert('AI suggestion failed: ' + err.message);
+  } finally {
+    aiBtn.innerHTML = originalText;
+    aiBtn.disabled = false;
   }
 }
 

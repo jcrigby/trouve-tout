@@ -703,6 +703,50 @@ header h1 a:active {
   color: var(--text-secondary);
 }
 
+/* Modal category container */
+.modal-category-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.modal-category-container #modal-category {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.category-edit-btn,
+.category-ai-btn {
+  background: var(--bg-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 1rem;
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+.category-edit-btn:hover,
+.category-edit-btn:active,
+.category-ai-btn:hover,
+.category-ai-btn:active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-glow-sm);
+}
+
+.category-ai-btn {
+  font-size: 0.9rem;
+}
+
 /* Modal caption container */
 .modal-caption-container {
   display: flex;
