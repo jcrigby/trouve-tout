@@ -351,24 +351,18 @@ header h1 a:active {
   gap: 2px;
 }
 
-.photo-card .label-category {
-  font-weight: 600;
+.photo-card .label-box {
+  font-size: 1.5rem;
+  font-weight: 800;
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  line-height: 1;
 }
 
-.photo-card .box-badge {
-  position: absolute;
-  top: var(--space-sm);
-  left: var(--space-sm);
-  background: var(--gradient-accent);
-  color: var(--bg-primary);
-  font-size: 0.75rem;
-  font-weight: 800;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-sm);
-  z-index: 2;
-  box-shadow: var(--shadow-sm);
-  min-width: 1.5rem;
-  text-align: center;
+.photo-card .label-category {
+  font-weight: 600;
 }
 
 .photo-card .label-caption {
