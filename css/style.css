@@ -355,6 +355,22 @@ header h1 a:active {
   font-weight: 600;
 }
 
+.photo-card .box-badge {
+  position: absolute;
+  top: var(--space-sm);
+  left: var(--space-sm);
+  background: var(--gradient-accent);
+  color: var(--bg-primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  z-index: 2;
+  box-shadow: var(--shadow-sm);
+  min-width: 1.5rem;
+  text-align: center;
+}
+
 .photo-card .label-caption {
   font-size: 0.75rem;
   font-weight: 400;
