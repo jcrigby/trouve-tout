@@ -166,9 +166,9 @@ function renderPhotoGrid() {
   photoGrid.innerHTML = photoSets.map(photo => {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
+        <span class="box-label">Box ${photo.box}</span>
         <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">
-          <span class="label-box">${photo.box}</span>
           <span class="label-category">${photo.category || 'Tools'}</span>
           ${photo.caption ? `<span class="label-caption">${photo.caption}</span>` : ''}
         </div>
