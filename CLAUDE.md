@@ -108,9 +108,24 @@ All data is stored in the user's Google Drive in a "Trouve-Tout" folder:
 │       └── auto-merge-claude.yml
 ├── css/
 │   └── style.css
+├── icons/                   # PWA / home-screen icons
+│   ├── icon.svg
+│   ├── icon-180.png         # apple-touch-icon
+│   ├── icon-192.png
+│   └── icon-512.png
 └── js/
     └── app.js               # Main app logic
 ```
+
+## PWA Path Rules (important)
+
+The site is served from a **subpath** (`https://jcrigby.github.io/trouve-tout/`),
+not a domain root. Always use **relative** URLs (`./css/style.css`), never
+root-absolute ones (`/css/style.css`) — the latter resolve to
+`jcrigby.github.io/...`, which is a different site, and 404.
+
+This applies to `sw.js` (the `ASSETS` precache list) and `manifest.json`
+(`start_url`, `scope`, `icons[].src`).
 
 ## Service Worker Caching Strategy
 - **App assets**: Stale-while-revalidate (serves cached, updates in background)
