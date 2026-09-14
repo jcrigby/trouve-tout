@@ -191,9 +191,17 @@ header h1 a:active {
 }
 
 .tab {
-  flex: 1;
-  min-width: max-content;
-  padding: var(--space-sm) var(--space-md);
+  flex: 1 1 0;
+  /* No min-width: max-content - that stopped the tabs shrinking and pushed
+     the fourth one off the edge of a phone screen. */
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px is the iOS / WCAG 2.5.5 minimum touch target; this app gets used
+     in a workshop, sometimes with gloves on. */
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-sm);
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -204,6 +212,14 @@ header h1 a:active {
   transition: all 0.3s ease;
   white-space: nowrap;
   position: relative;
+}
+
+/* Full labels where there is room, short ones on phones. */
+.tab-short { display: none; }
+
+@media (max-width: 560px) {
+  .tab-long { display: none; }
+  .tab-short { display: inline; }
 }
 
 .tab:hover {
