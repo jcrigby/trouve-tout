@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '83';
+const BUILD_NUMBER = '84';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
