@@ -1100,13 +1100,17 @@ function renderResults(items, grouped = false) {
     const box = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
     return `
       <div class="result-item" data-id="${item.id}">
-        <h3>${item.item}</h3>
-        <div class="meta">
-          <span>${item.brand || 'Unknown'}</span>
-          ${item.model ? `<span>${item.model}</span>` : ''}
+        <div class="result-row">
+          <div class="result-main">
+            <h3>${item.item}</h3>
+            <div class="meta">
+              <span>${item.brand || 'Unknown'}</span>
+              ${item.model ? `<span>${item.model}</span>` : ''}
+            </div>
+          </div>
+          <span class="box-label">${boxLabel(box)}</span>
         </div>
         ${item.notes ? `<div class="notes">${item.notes}</div>` : ''}
-        <span class="box-label">${boxLabel(box)}</span>
       </div>
     `;
   }).join('');

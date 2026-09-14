@@ -549,17 +549,30 @@ header h1 a:active {
   border-top: 1px solid var(--border);
 }
 
+/* The whole point of the app is answering "where is it", so the location
+   leads the card rather than trailing it in 0.7rem small caps. */
+.result-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.result-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .result-item .box-label {
   display: inline-block;
+  flex-shrink: 0;
   background: var(--gradient-accent);
   color: var(--bg-primary);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
-  font-size: 0.7rem;
+  font-size: 0.9rem;
   font-weight: 800;
-  margin-top: var(--space-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  white-space: nowrap;
   box-shadow: var(--shadow-glow-sm);
 }
 
