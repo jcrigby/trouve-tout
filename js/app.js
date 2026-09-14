@@ -18,6 +18,8 @@ const GOOGLE_CLIENT_ID = '339196755594-oajh6pqn0o178o9ipsvg7d7r86dg2sv5.apps.goo
 const GOOGLE_DRIVE_API = 'https://www.googleapis.com/drive/v3';
 const GOOGLE_UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
+// Give up on a silent token refresh rather than hanging startup on it
+const SILENT_REFRESH_TIMEOUT_MS = 6000;
 
 // AI Models
 const MODELS = {
@@ -1118,6 +1120,8 @@ const DriveStorage = {
   tokenClient: null,
   // true only while a connect the user clicked is in flight
   userInitiatedAuth: false,
+  // settles an in-flight silent refresh (set by refreshTokenIfNeeded)
+  _settleRefresh: null,
 
   // Check if connected to Google Drive
   isConnected() {
@@ -1152,6 +1156,9 @@ const DriveStorage = {
       include_granted_scopes: false,
       error_callback: (err) => {
         console.error('Google OAuth error:', err);
+        // A blocked or closed popup reports here and never reaches callback,
+        // so a silent refresh waiting on it has to be released.
+        if (this._settleRefresh) this._settleRefresh(false);
         showGoogleError(err && (err.message || err.type) ? (err.message || err.type) : 'Authorization failed');
       },
       callback: async (tokenResponse) => {
@@ -1234,13 +1241,33 @@ const DriveStorage = {
 
       // Set up a one-time callback for this refresh attempt
       const originalCallback = this.tokenClient.callback;
-      this.tokenClient.callback = async (tokenResponse) => {
-        // Restore original callback
-        this.tokenClient.callback = originalCallback;
 
+      // This promise MUST always settle. requestAccessToken opens a popup,
+      // and a popup opened without a user gesture is blocked by default -
+      // in which case it neither throws nor invokes the callback. init()
+      // awaits this, so an unsettled promise hung startup forever: the
+      // photo grid, the category list and the connection status never
+      // rendered, leaving the app stuck on "No photos yet".
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this._settleRefresh = null;
+        if (this.tokenClient) this.tokenClient.callback = originalCallback;
+        resolve(value);
+      };
+      const timer = setTimeout(() => {
+        console.log('Silent refresh timed out, user needs to reconnect');
+        finish(false);
+      }, SILENT_REFRESH_TIMEOUT_MS);
+      // let error_callback (popup blocked / closed) settle us too
+      this._settleRefresh = finish;
+
+      this.tokenClient.callback = async (tokenResponse) => {
         if (tokenResponse.error) {
           console.log('Silent refresh failed, user needs to reconnect');
-          resolve(false);
+          finish(false);
           return;
         }
 
@@ -1248,7 +1275,7 @@ const DriveStorage = {
         localStorage.setItem('google_access_token', tokenResponse.access_token);
         localStorage.setItem('google_token_expiry', Date.now() + (tokenResponse.expires_in * 1000));
         console.log('Token silently refreshed');
-        resolve(true);
+        finish(true);
       };
 
       // Request new token without consent prompt (silent if already authorized)
@@ -1257,7 +1284,7 @@ const DriveStorage = {
         this.tokenClient.requestAccessToken({ prompt: '' });
       } catch (err) {
         console.log('Silent refresh error:', err);
-        resolve(false);
+        finish(false);
       }
     });
   },
