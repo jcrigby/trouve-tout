@@ -1099,10 +1099,25 @@ function disconnect() {
 
 // ==================== Google Drive Storage ====================
 
+// Show an OAuth failure in the Settings > Google Drive status line.
+// Without this, a failed authorization only reached the console and the
+// UI just sat on "Not connected" with no explanation.
+function showGoogleError(message) {
+  // Silent startup refreshes are expected to fail once the hourly token
+  // lapses; only a connect the user actually clicked should show an error.
+  if (!DriveStorage.userInitiatedAuth) return;
+  const status = document.getElementById('google-status');
+  if (!status) return;
+  status.textContent = `Connection failed: ${message}`;
+  status.className = 'settings-status error';
+}
+
 const DriveStorage = {
   FOLDER_NAME: 'Trouve-Tout',
   folderId: null,
   tokenClient: null,
+  // true only while a connect the user clicked is in flight
+  userInitiatedAuth: false,
 
   // Check if connected to Google Drive
   isConnected() {
@@ -1129,9 +1144,20 @@ const DriveStorage = {
     this.tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: GOOGLE_CLIENT_ID,
       scope: GOOGLE_SCOPE,
+      // GIS defaults this to true, which merges every scope previously
+      // granted to this client ID into the request. This client is shared
+      // with an older YouTube app, and Google rejects drive.file and
+      // youtube.readonly in a single request ("scopes that cannot be
+      // requested together", error 400). We only ever need drive.file.
+      include_granted_scopes: false,
+      error_callback: (err) => {
+        console.error('Google OAuth error:', err);
+        showGoogleError(err && (err.message || err.type) ? (err.message || err.type) : 'Authorization failed');
+      },
       callback: async (tokenResponse) => {
         if (tokenResponse.error) {
           console.error('Google OAuth error:', tokenResponse.error);
+          showGoogleError(tokenResponse.error_description || tokenResponse.error);
           return;
         }
 
@@ -1180,6 +1206,7 @@ const DriveStorage = {
     }
 
     // Request an access token
+    this.userInitiatedAuth = true;
     this.tokenClient.requestAccessToken({ prompt: 'consent' });
   },
 
@@ -1226,6 +1253,7 @@ const DriveStorage = {
 
       // Request new token without consent prompt (silent if already authorized)
       try {
+        this.userInitiatedAuth = false;
         this.tokenClient.requestAccessToken({ prompt: '' });
       } catch (err) {
         console.log('Silent refresh error:', err);
