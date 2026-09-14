@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '85';
+const BUILD_NUMBER = '86';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -549,6 +549,7 @@ async function showPhotoModal(file, box, category, driveId) {
   document.getElementById('modal-box-number').textContent = boxLabel(box);
   const modalImage = document.getElementById('modal-image');
   const photo = photoSets[currentPhotoIndex];
+  document.getElementById('delete-photo-btn').textContent = deleteButtonLabel(photo);
 
   // Load image with auth if from Drive
   if (photo && photo.driveId) {
@@ -620,13 +621,20 @@ async function updatePhotoDisplay() {
   // Load image with auth if from Drive
   if (photo.driveId) {
     const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
-    img.src = blobUrl || '';
+    // Never assign an empty src - WebKit reports that as a failed load.
+    if (blobUrl) {
+      img.src = blobUrl;
+    } else {
+      img.removeAttribute('src');
+    }
   } else {
-    img.src = `images/${photo.file}`;
+    // The static images/ directory went away when storage moved to Drive.
+    img.removeAttribute('src');
   }
   img.onload = () => { img.style.opacity = '1'; };
 
   document.getElementById('modal-box-number').textContent = boxLabel(photo.box);
+  document.getElementById('delete-photo-btn').textContent = deleteButtonLabel(photo);
   document.getElementById('modal-category').textContent = photo.category;
 
   // Update caption
@@ -786,39 +794,50 @@ async function deleteCurrentItem() {
 }
 
 // Delete current photo
+// What deleting a given photo would actually do. The button label and the
+// confirmation both read from this, so the promise on the button and the
+// warning in the dialog cannot drift apart.
+function describePhotoDeletion(photo) {
+  const photoSetName = photo.file.replace('.jpg', '');
+  const affected = inventory.filter(item =>
+    item.photoSet.split('/').includes(photoSetName));
+  // An item goes only if this was its ONLY photo. Note that is not the same
+  // as "the box has one photo" - an item can reference a single view of a
+  // box that has several.
+  const itemsToDelete = affected.filter(item => item.photoSet.split('/').length === 1);
+  const itemsToUpdate = affected.filter(item => item.photoSet.split('/').length > 1);
+  const isOnlyViewOfBox = photoSets.filter(p => p.box === photo.box).length === 1;
+  return { photoSetName, itemsToDelete, itemsToUpdate, isOnlyViewOfBox };
+}
+
+// "Delete Photo" understated this: for a box with a single view it deletes
+// that box's entire contents list. Say what will actually happen instead.
+function deleteButtonLabel(photo) {
+  if (!photo) return 'Delete Photo';
+  const { itemsToDelete, isOnlyViewOfBox } = describePhotoDeletion(photo);
+  const n = itemsToDelete.length;
+  if (n > 0) {
+    const items = `${n} Item${n === 1 ? '' : 's'}`;
+    return isOnlyViewOfBox ? `Delete Box & ${items}` : `Delete Photo & ${items}`;
+  }
+  // Nothing but the picture goes; if the box has other angles, say so.
+  return isOnlyViewOfBox ? 'Delete Photo' : 'Delete This View';
+}
+
 async function deleteCurrentPhoto() {
   if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
 
   const photo = photoSets[currentPhotoIndex];
   if (!photo) return;
 
-  const photoSetName = photo.file.replace('.jpg', '');
-
-  // Find items that reference this photo
-  // photoSet can be "3a" (single) or "3a/3b" (multiple photos)
-  const affectedItems = inventory.filter(item => {
-    const refs = item.photoSet.split('/');
-    return refs.includes(photoSetName);
-  });
-
-  // Categorize: items to delete vs items to update
-  const itemsToDelete = [];
-  const itemsToUpdate = [];
-
-  for (const item of affectedItems) {
-    const refs = item.photoSet.split('/');
-    if (refs.length === 1) {
-      // Only photo reference - item will be deleted
-      itemsToDelete.push(item);
-    } else {
-      // Multiple photo references - just remove this one
-      itemsToUpdate.push(item);
-    }
-  }
+  const { photoSetName, itemsToDelete, itemsToUpdate } = describePhotoDeletion(photo);
 
   let confirmMsg = `Delete photo "${photo.file}" (${boxLabel(photo.box)})?`;
   if (itemsToDelete.length > 0) {
-    confirmMsg += `\n\n${itemsToDelete.length} item(s) will be deleted (only linked to this photo).`;
+    // Name them. A count alone does not tell you what you are about to lose.
+    const names = itemsToDelete.map(i => `\u2022 ${i.item}`).join('\n');
+    confirmMsg += `\n\nThese ${itemsToDelete.length} item(s) will be deleted too` +
+                  ` - this is their only photo:\n${names}`;
   }
   if (itemsToUpdate.length > 0) {
     confirmMsg += `\n\n${itemsToUpdate.length} item(s) will be updated (linked to other photos too).`;
