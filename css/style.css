@@ -600,7 +600,6 @@ header h1 a:active {
   font-size: 0.9rem;
   font-weight: 800;
   white-space: nowrap;
-  box-shadow: var(--shadow-glow-sm);
 }
 
 /* ============================================
@@ -657,6 +656,36 @@ header h1 a:active {
 
 .action-btn.secondary::before {
   display: none;
+}
+
+/* Destructive actions. These sat full-width in the same shape as the
+   primary action directly above them, which is one mis-tap away from
+   deleting a photo with a gloved thumb. Recessive, error-coloured, and
+   set apart - still reachable, no longer the obvious next thing to press. */
+.action-btn.danger {
+  width: auto;
+  min-height: 44px;
+  margin: var(--space-lg) auto var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: transparent;
+  color: var(--error);
+  border: 1px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.action-btn.danger::before {
+  display: none;
+}
+
+.action-btn.danger:hover,
+.action-btn.danger:active {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: var(--error);
+  color: var(--error);
+  transform: none;
+  box-shadow: none;
 }
 
 .action-btn.secondary:hover,
