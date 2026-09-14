@@ -262,12 +262,25 @@ function renderPhotoGrid() {
   loadDriveImages();
 }
 
+// Swap a neutral placeholder in when a photo cannot be fetched - offline,
+// a cache miss, revoked Drive access, or a path that no longer exists.
+// Without this the browser draws its broken-image glyph, or nothing at all.
+function attachImageFallback(img, labelText) {
+  img.addEventListener('error', () => {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'photo-missing';
+    placeholder.textContent = labelText || 'Photo unavailable';
+    img.replaceWith(placeholder);
+  }, { once: true });
+}
+
 // Load images from Google Drive with authentication
 async function loadDriveImages() {
   const images = document.querySelectorAll('img[data-drive-id]');
 
   // Load all images in parallel for speed
   const loadPromises = Array.from(images).map(async (img) => {
+    attachImageFallback(img, img.alt || 'Photo unavailable');
     const driveId = img.dataset.driveId;
     if (!driveId) {
       img.closest('.photo-card')?.classList.remove('loading');
@@ -320,6 +333,11 @@ function setupEventListeners() {
       modeContents.forEach(content => {
         content.classList.toggle('active', content.id === `${mode}-mode`);
       });
+
+      // You came here to type; don't make it cost a second tap.
+      if (mode === 'search') {
+        searchInput.focus();
+      }
     });
   });
 
@@ -341,6 +359,16 @@ function setupEventListeners() {
   document.getElementById('home-link').addEventListener('click', (e) => {
     e.preventDefault();
     goHome();
+  });
+
+  // Explicit close control on every modal. The only way out used to be a
+  // back arrow labelled with the app's own name, which reads as navigation
+  // rather than "dismiss this".
+  document.querySelectorAll('.modal-close').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      btn.closest('.modal')?.classList.remove('active');
+    });
   });
 
   // Modal home links - go back to start
@@ -650,11 +678,20 @@ async function showItemModal(item) {
     const ps = photoSets.find(ps => ps.file === `${p}.jpg`);
     const img = document.getElementById(`item-photo-${i}`);
 
+    if (!img) continue;
+    attachImageFallback(img, 'Photo unavailable');
+
     if (ps && ps.driveId) {
       const blobUrl = await DriveStorage.getPhotoBlobUrl(ps.driveId, 'full');
-      if (blobUrl) img.src = blobUrl;
+      if (blobUrl) {
+        img.src = blobUrl;
+      } else {
+        img.dispatchEvent(new Event('error'));
+      }
     } else {
-      img.src = `images/${p}.jpg`;
+      // The static images/ directory was removed when storage moved to
+      // Drive, so there is nothing to fall back to here.
+      img.dispatchEvent(new Event('error'));
     }
   }
 
