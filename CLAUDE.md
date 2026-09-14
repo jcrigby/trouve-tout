@@ -20,8 +20,12 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Shows all box photos in a grid
 - Tap a photo to see the box number and category
 - Swipe left/right to navigate between photos
-- "Show Box Contents" button shows inventory for that box
-- "Delete Photo" button removes photo from Drive
+- "Show Box Contents" lists that box's inventory; tap any item to open the
+  item modal and edit or delete it. The list refreshes in place afterwards.
+- The delete button is labelled by consequence, via `deleteButtonLabel()`:
+  "Delete This View" / "Delete Photo" / "Delete Photo & N Items" /
+  "Delete Box & N Items". Deleting a photo also deletes any item whose only
+  photo it was, so the label says so rather than hiding it.
 
 ### 2. Text Search
 - Type in search box to filter items by item name, brand, model, notes, or type

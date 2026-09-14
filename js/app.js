@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '86';
+const BUILD_NUMBER = '87';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -414,6 +414,16 @@ function setupEventListeners() {
     }
   });
 
+  // Tapping an item in the box contents list opens the item modal, which
+  // already carries Edit and Delete. Delegated, because the list is
+  // re-rendered whenever it changes.
+  photoModal.addEventListener('click', (e) => {
+    const row = e.target.closest('.inventory-row');
+    if (!row) return;
+    const item = inventory.find(i => i.id === row.dataset.itemId);
+    if (item) showItemModal(item);
+  });
+
   // Edit item button
   document.getElementById('edit-item-btn').addEventListener('click', () => {
     editCurrentItem();
@@ -508,9 +518,23 @@ function showBoxContents(boxNumber) {
     return itemBox === String(boxNumber);
   });
 
-  const listHtml = renderInventoryList(boxItems);
+  const listHtml = renderInventoryList(boxItems, { interactive: true });
   btn.insertAdjacentHTML('afterend', listHtml);
   btn.textContent = 'Hide Box Contents';
+}
+
+// Re-render the box contents list in place, if it is currently showing.
+// Editing or deleting an item from that list has to be reflected there, not
+// just in the search results.
+function refreshBoxContentsIfOpen() {
+  const existingList = photoModal.querySelector('.inventory-list');
+  if (!existingList || currentBoxNumber === null) return;
+
+  const boxItems = inventory.filter(item => {
+    const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+    return itemBox === String(currentBoxNumber);
+  });
+  existingList.outerHTML = renderInventoryList(boxItems, { interactive: true });
 }
 
 // Show all inventory
@@ -529,14 +553,22 @@ function showAllInventory() {
 }
 
 // Render inventory list HTML
-function renderInventoryList(items) {
+function renderInventoryList(items, { interactive = false } = {}) {
   if (items.length === 0) {
     return '<div class="inventory-list"><p class="no-results">No items in this box</p></div>';
   }
 
   const itemList = items.map(item => {
     const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
-    return `<li>${item.item}${brand}</li>`;
+    if (!interactive) {
+      return `<li>${item.item}${brand}</li>`;
+    }
+    // A button, not a styled div: keyboard and assistive tech get this for
+    // free, and it is a proper 44px target.
+    return `<li class="inventory-li-row"><button type="button" class="inventory-row" data-item-id="${item.id}">
+      <span class="inventory-row-name">${item.item}${brand}</span>
+      <span class="inventory-row-edit" aria-hidden="true">&#9998;</span>
+    </button></li>`;
   }).join('');
 
   return `<div class="inventory-list"><ul>${itemList}</ul></div>`;
@@ -557,9 +589,16 @@ async function showPhotoModal(file, box, category, driveId) {
     // load and paints its broken-image icon.
     modalImage.removeAttribute('src'); // Clear while loading
     const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
-    modalImage.src = blobUrl || '';
+    // Never assign an empty src - WebKit reports that as a failed load and
+    // paints its broken-image icon.
+    if (blobUrl) {
+      modalImage.src = blobUrl;
+    } else {
+      modalImage.removeAttribute('src');
+    }
   } else {
-    modalImage.src = `images/${file}`;
+    // The static images/ directory went away when storage moved to Drive.
+    modalImage.removeAttribute('src');
   }
 
   modalImage.style.display = '';
@@ -759,9 +798,10 @@ async function editCurrentItem() {
   // Save to Drive
   try {
     await DriveStorage.saveInventory(inventory);
-    alert('Item updated!');
     itemModal.classList.remove('active');
     performSearch(); // Refresh results
+    refreshBoxContentsIfOpen();
+    populateCategories();
   } catch (err) {
     console.error('Failed to save:', err);
     alert('Failed to save: ' + err.message);
@@ -783,10 +823,11 @@ async function deleteCurrentItem() {
   // Save to Drive
   try {
     await DriveStorage.saveInventory(inventory);
-    alert('Item deleted!');
     currentItem = null;
     itemModal.classList.remove('active');
     performSearch(); // Refresh results
+    refreshBoxContentsIfOpen();
+    populateCategories();
   } catch (err) {
     console.error('Failed to delete:', err);
     alert('Failed to delete: ' + err.message);

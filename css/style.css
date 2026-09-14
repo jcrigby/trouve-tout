@@ -950,6 +950,51 @@ header h1 a:active {
   border-bottom: 1px solid var(--border);
 }
 
+/* Tappable row in the box contents list */
+.inventory-list li.inventory-li-row {
+  padding: 0;
+}
+
+.inventory-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--space-sm);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.inventory-row:hover,
+.inventory-row:active {
+  background: var(--bg-elevated);
+}
+
+.inventory-row-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.inventory-row-edit {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.inventory-row:hover .inventory-row-edit,
+.inventory-row:active .inventory-row-edit {
+  color: var(--accent);
+}
+
 .inventory-list li:last-child {
   border-bottom: none;
 }
