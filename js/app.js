@@ -629,7 +629,7 @@ async function showItemModal(item) {
     <p><strong>Type:</strong> ${item.type}</p>
     <p><strong>Category:</strong> ${item.category}</p>
     ${item.notes ? `<p><strong>Notes:</strong> ${item.notes}</p>` : ''}
-    <p><strong>Box:</strong> ${box}</p>
+    <p><strong>Location:</strong> ${boxLabel(box)}</p>
   `;
 
   // Create placeholder images
