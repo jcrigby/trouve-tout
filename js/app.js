@@ -240,9 +240,15 @@ function renderPhotoGrid() {
 
   // Render grid with loading skeletons
   photoGrid.innerHTML = photoSets.map(photo => {
+    // Several photos of one box render as identical cards otherwise, so
+    // show the view letter when a box actually has more than one angle.
+    const viewsOfBox = photoSets.filter(p => p.box === photo.box).length;
+    const viewChip = viewsOfBox > 1
+      ? `<span class="view-chip">${photo.view}</span>`
+      : '';
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
-        <span class="box-label">${boxLabel(photo.box)}</span>
+        <span class="box-label">${boxLabel(photo.box)}${viewChip}</span>
         <img src="" alt="${boxLabel(photo.box)} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">
           <span class="label-category">${photo.category || 'Tools'}</span>

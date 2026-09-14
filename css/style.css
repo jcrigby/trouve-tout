@@ -307,8 +307,10 @@ header h1 a:active {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, transparent 30%, rgba(0, 0, 0, 0.8) 100%);
-  opacity: 0.8;
+  /* Browse is visual grep: keep the scrim to the bottom third so the photo
+     itself stays readable, and lean on text-shadow for legibility. */
+  background: linear-gradient(180deg, transparent 45%, rgba(0, 0, 0, 0.85) 100%);
+  opacity: 0.85;
   z-index: 1;
   transition: opacity 0.3s ease;
 }
@@ -371,6 +373,9 @@ header h1 a:active {
   position: absolute;
   top: var(--space-sm);
   left: var(--space-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--text-primary);
@@ -378,8 +383,30 @@ header h1 a:active {
   z-index: 2;
 }
 
+/* Which angle of the box this is - only shown when there is more than one */
+.photo-card .view-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  border-radius: var(--radius-full);
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  text-shadow: none;
+}
+
 .photo-card .label-category {
   font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+  /* Long category names pushed the label block halfway up the photo */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .photo-card .label-caption {
