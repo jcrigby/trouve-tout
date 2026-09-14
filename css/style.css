@@ -757,7 +757,8 @@ header h1 a:active {
 }
 
 .category-edit-btn,
-.category-ai-btn {
+.category-ai-btn,
+.caption-edit-btn {
   background: var(--bg-glass);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -765,7 +766,14 @@ header h1 a:active {
   border-radius: var(--radius-sm);
   color: var(--text-secondary);
   font-size: 1rem;
-  padding: var(--space-xs) var(--space-sm);
+  /* 44x44 minimum: these were 28x26, too small to hit reliably with a
+     gloved thumb in a workshop. */
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   cursor: pointer;
   transition: all 0.3s ease;
   flex-shrink: 0;
@@ -774,7 +782,9 @@ header h1 a:active {
 .category-edit-btn:hover,
 .category-edit-btn:active,
 .category-ai-btn:hover,
-.category-ai-btn:active {
+.category-ai-btn:active,
+.caption-edit-btn:hover,
+.caption-edit-btn:active {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--bg-elevated);
@@ -800,20 +810,6 @@ header h1 a:active {
   margin: 0;
   flex: 1;
   text-align: center;
-}
-
-.caption-edit-btn {
-  background: var(--bg-glass);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  font-size: 1rem;
-  padding: var(--space-xs) var(--space-sm);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  flex-shrink: 0;
 }
 
 .caption-edit-btn:hover,
