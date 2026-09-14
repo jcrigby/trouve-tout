@@ -1563,3 +1563,16 @@ select:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--accent-glow);
 }
+
+/* ============================================
+   FOOTER - build stamp
+   ============================================ */
+.app-footer {
+  text-align: center;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: var(--space-lg) var(--space-md);
+  /* clear the iPhone home indicator */
+  padding-bottom: calc(var(--space-lg) + env(safe-area-inset-bottom, 0px));
+}

@@ -7,6 +7,12 @@ let currentPhotoIndex = 0;
 let touchStartX = 0;
 let touchEndX = 0;
 
+// Build number. Lives here rather than in index.html so what you see is the
+// build of the SCRIPT actually running - if a stale app.js is being served
+// from cache, the footer says so instead of reporting the fresh HTML.
+// Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
+const BUILD_NUMBER = '83';
+
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
 const OPENROUTER_TOKEN_URL = 'https://openrouter.ai/api/v1/auth/keys';
@@ -112,8 +118,16 @@ function goHome() {
   });
 }
 
+// Write the build number into the footer and the Settings panel.
+function stampBuildNumber() {
+  document.querySelectorAll('#footer-build, #build-number')
+    .forEach(el => { el.textContent = BUILD_NUMBER; });
+}
+
 // Initialize app
 async function init() {
+  stampBuildNumber();
+
   // Setup event listeners first (before data load)
   setupEventListeners();
   setupAIEventListeners();

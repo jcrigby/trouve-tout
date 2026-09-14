@@ -151,6 +151,20 @@ This applies to `sw.js` (the `ASSETS` precache list) and `manifest.json`
 - **Images**: Cached in IndexedDB (separate from service worker cache)
 - Bump `CACHE_NAME` version in sw.js when changing code
 
+### Bumping the build number
+
+Three places, keep them in step:
+1. `BUILD_NUMBER` in `js/app.js`
+2. `CACHE_NAME` in `sw.js`
+3. the `?v=` on the `js/app.js` script tag in `index.html`
+
+The number shown in the page footer and in Settings both come from
+`BUILD_NUMBER` in app.js - deliberately, not from the HTML - so the app
+reports the build of the **script actually running**. If a stale `app.js`
+is being served from cache, the footer shows the old number instead of the
+fresh HTML's, which is what makes it useful for spotting cache staleness
+on iOS.
+
 ## Claude Workflow (Auto-Deploy)
 
 ### How It Works
