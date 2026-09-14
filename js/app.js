@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '84';
+const BUILD_NUMBER = '85';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -249,7 +249,7 @@ function renderPhotoGrid() {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
         <span class="box-label">${boxLabel(photo.box)}${viewChip}</span>
-        <img src="" alt="${boxLabel(photo.box)} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
+        <img alt="${boxLabel(photo.box)} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">
           <span class="label-category">${photo.category || 'Tools'}</span>
           ${photo.caption ? `<span class="label-caption">${photo.caption}</span>` : ''}
@@ -265,13 +265,24 @@ function renderPhotoGrid() {
 // Swap a neutral placeholder in when a photo cannot be fetched - offline,
 // a cache miss, revoked Drive access, or a path that no longer exists.
 // Without this the browser draws its broken-image glyph, or nothing at all.
+function replaceWithPlaceholder(img, labelText) {
+  if (!img || !img.parentElement) return;
+  const placeholder = document.createElement('div');
+  placeholder.className = 'photo-missing';
+  placeholder.textContent = labelText || 'Photo unavailable';
+  img.replaceWith(placeholder);
+}
+
 function attachImageFallback(img, labelText) {
   img.addEventListener('error', () => {
-    const placeholder = document.createElement('div');
-    placeholder.className = 'photo-missing';
-    placeholder.textContent = labelText || 'Photo unavailable';
-    img.replaceWith(placeholder);
-  }, { once: true });
+    // WebKit fires an error for an <img> with an empty or absent src;
+    // Chrome does not. Treating that as a real failure replaced every
+    // thumbnail with a placeholder on iOS before the Drive URL had even
+    // been assigned, while desktop Chrome looked fine. Only a real src
+    // that fails to load counts.
+    if (!img.getAttribute('src')) return;
+    replaceWithPlaceholder(img, labelText);
+  });
 }
 
 // Load images from Google Drive with authentication
@@ -300,9 +311,12 @@ async function loadDriveImages() {
       const blobUrl = await DriveStorage.getPhotoBlobUrl(driveId, 'thumb');
       if (blobUrl) {
         img.src = blobUrl;
+      } else {
+        replaceWithPlaceholder(img, img.alt);
       }
     } catch (err) {
       console.error('Failed to load image:', driveId, err);
+      replaceWithPlaceholder(img, img.alt);
     }
     img.closest('.photo-card')?.classList.remove('loading');
   });
@@ -538,7 +552,9 @@ async function showPhotoModal(file, box, category, driveId) {
 
   // Load image with auth if from Drive
   if (photo && photo.driveId) {
-    modalImage.src = ''; // Clear while loading
+    // removeAttribute, not src='': WebKit treats an empty src as a failed
+    // load and paints its broken-image icon.
+    modalImage.removeAttribute('src'); // Clear while loading
     const blobUrl = await DriveStorage.getPhotoBlobUrl(photo.driveId, 'full');
     modalImage.src = blobUrl || '';
   } else {
@@ -669,7 +685,7 @@ async function showItemModal(item) {
   // Create placeholder images
   const photosContainer = document.getElementById('item-photos');
   photosContainer.innerHTML = photos.map((p, i) =>
-    `<img src="" alt="${boxLabel(box)}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
+    `<img alt="${boxLabel(box)}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
   ).join('');
 
   // Load photos from Drive with auth
@@ -686,12 +702,12 @@ async function showItemModal(item) {
       if (blobUrl) {
         img.src = blobUrl;
       } else {
-        img.dispatchEvent(new Event('error'));
+        replaceWithPlaceholder(img, 'Photo unavailable');
       }
     } else {
       // The static images/ directory was removed when storage moved to
       // Drive, so there is nothing to fall back to here.
-      img.dispatchEvent(new Event('error'));
+      replaceWithPlaceholder(img, 'Photo unavailable');
     }
   }
 

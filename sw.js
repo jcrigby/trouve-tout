@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trouve-tout-v84';
+const CACHE_NAME = 'trouve-tout-v85';
 
 // Relative paths: this app is served from a GitHub Pages subpath
 // (/trouve-tout/), so root-absolute URLs like '/css/style.css' would
