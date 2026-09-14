@@ -27,6 +27,66 @@ const MODELS = {
   chat: 'anthropic/claude-3-haiku'       // For general conversation
 };
 
+// ==================== Box labels ====================
+//
+// The numeric `box` is IDENTITY, not display: it builds photo filenames
+// ({box}{view}.jpg), item ids ({box}{view}{seq}), and is recovered from an
+// item by stripping letters off item.photoSet. It must stay numeric and
+// globally unique.
+//
+// A box's display name is a prefix stored on its photoset rows. The number
+// shown beside the prefix counts boxes sharing that prefix, so the first
+// "GardenBox" reads "GardenBox 1" even though it is internally box 5.
+// Note: these indexes are positional, so deleting a box renumbers the ones
+// after it within the same prefix.
+const DEFAULT_BOX_PREFIX = 'Box';
+
+// The prefix a box was given, or the default.
+function boxPrefixOf(boxNumber) {
+  const row = photoSets.find(p => p.box === Number(boxNumber) && p.boxPrefix);
+  return (row && row.boxPrefix) || DEFAULT_BOX_PREFIX;
+}
+
+// Every distinct box number, ascending.
+function allBoxNumbers() {
+  return [...new Set(photoSets.map(p => p.box))].sort((a, b) => a - b);
+}
+
+// Display name for a box, e.g. "Box 2" or "GardenBox 1".
+function boxLabel(boxNumber) {
+  const num = Number(boxNumber);
+  const prefix = boxPrefixOf(num);
+  const peers = allBoxNumbers().filter(b => boxPrefixOf(b) === prefix);
+  const index = peers.indexOf(num);
+  // A box with no photos yet has no peers to count among; fall back to its
+  // own number so the label is still meaningful.
+  return `${prefix} ${index >= 0 ? index + 1 : num}`;
+}
+
+// Rename a box: the prefix belongs to the box, so it applies to every
+// photoset row for that box, not just the photo in view.
+async function setBoxPrefix(boxNumber, prefix) {
+  const trimmed = (prefix || '').trim() || DEFAULT_BOX_PREFIX;
+  const rows = photoSets.filter(p => p.box === Number(boxNumber));
+  if (rows.length === 0) return false;
+  rows.forEach(p => { p.boxPrefix = trimmed; });
+  await DriveStorage.savePhotosets(photoSets);
+  return true;
+}
+
+// Match a typed box reference against the labels actually in use, so
+// "GardenBox 1" selects the right box and not box 1.
+function findBoxByLabel(message) {
+  const msg = String(message || '').trim().toLowerCase();
+  if (!msg) return null;
+  // longest label first, so "GardenBox 1" wins over a bare "Box 1"
+  const candidates = allBoxNumbers()
+    .map(b => ({ box: b, label: boxLabel(b).toLowerCase() }))
+    .sort((a, b) => b.label.length - a.label.length);
+  const hit = candidates.find(c => msg.includes(c.label));
+  return hit ? hit.box : null;
+}
+
 // DOM elements
 const photoGrid = document.getElementById('photo-grid');
 const searchInput = document.getElementById('search-input');
@@ -168,8 +228,8 @@ function renderPhotoGrid() {
   photoGrid.innerHTML = photoSets.map(photo => {
     return `
       <div class="photo-card loading" data-file="${photo.file}" data-box="${photo.box}" data-category="${photo.category}" data-drive-id="${photo.driveId || ''}">
-        <span class="box-label">Box ${photo.box}</span>
-        <img src="" alt="Box ${photo.box} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
+        <span class="box-label">${boxLabel(photo.box)}</span>
+        <img src="" alt="${boxLabel(photo.box)} view ${photo.view}" loading="lazy" data-drive-id="${photo.driveId || ''}">
         <div class="label">
           <span class="label-category">${photo.category || 'Tools'}</span>
           ${photo.caption ? `<span class="label-caption">${photo.caption}</span>` : ''}
@@ -324,6 +384,10 @@ function setupEventListeners() {
     editPhotoCategory();
   });
 
+  document.getElementById('edit-box-name-btn').addEventListener('click', () => {
+    editBoxName();
+  });
+
   // AI category suggestion button
   document.getElementById('ai-category-btn').addEventListener('click', () => {
     suggestCategoryWithAI();
@@ -420,7 +484,7 @@ function renderInventoryList(items) {
 async function showPhotoModal(file, box, category, driveId) {
   currentPhotoIndex = photoSets.findIndex(p => p.file === file);
   currentBoxNumber = box;
-  document.getElementById('modal-box-number').textContent = `Box ${box}`;
+  document.getElementById('modal-box-number').textContent = boxLabel(box);
   const modalImage = document.getElementById('modal-image');
   const photo = photoSets[currentPhotoIndex];
 
@@ -455,7 +519,9 @@ async function showPhotoModal(file, box, category, driveId) {
   // Show category edit buttons only if connected to Drive
   const editCategoryBtn = document.getElementById('edit-category-btn');
   const aiCategoryBtn = document.getElementById('ai-category-btn');
+  const editBoxNameBtn = document.getElementById('edit-box-name-btn');
   editCategoryBtn.style.display = DriveStorage.isConnected() ? '' : 'none';
+  editBoxNameBtn.style.display = DriveStorage.isConnected() ? '' : 'none';
   aiCategoryBtn.style.display = (DriveStorage.isConnected() && localStorage.getItem('openrouter_key')) ? '' : 'none';
 
   const boxContentsBtn = document.getElementById('show-box-contents-btn');
@@ -496,7 +562,7 @@ async function updatePhotoDisplay() {
   }
   img.onload = () => { img.style.opacity = '1'; };
 
-  document.getElementById('modal-box-number').textContent = `Box ${photo.box}`;
+  document.getElementById('modal-box-number').textContent = boxLabel(photo.box);
   document.getElementById('modal-category').textContent = photo.category;
 
   // Update caption
@@ -555,7 +621,7 @@ async function showItemModal(item) {
   // Create placeholder images
   const photosContainer = document.getElementById('item-photos');
   photosContainer.innerHTML = photos.map((p, i) =>
-    `<img src="" alt="Box ${box}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
+    `<img src="" alt="${boxLabel(box)}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
   ).join('');
 
   // Load photos from Drive with auth
@@ -677,7 +743,7 @@ async function deleteCurrentPhoto() {
     }
   }
 
-  let confirmMsg = `Delete photo "${photo.file}" (Box ${photo.box})?`;
+  let confirmMsg = `Delete photo "${photo.file}" (${boxLabel(photo.box)})?`;
   if (itemsToDelete.length > 0) {
     confirmMsg += `\n\n${itemsToDelete.length} item(s) will be deleted (only linked to this photo).`;
   }
@@ -804,7 +870,7 @@ async function editPhotoCategory(suggestedCategory = null) {
     const otherPhotosInBox = photoSets.filter(p => p.box === boxNum && p.file !== photo.file);
 
     if (otherPhotosInBox.length > 0) {
-      const updateOthers = confirm(`Apply "${trimmedCategory}" to ${otherPhotosInBox.length} other photo(s) in Box ${boxNum}?`);
+      const updateOthers = confirm(`Apply "${trimmedCategory}" to ${otherPhotosInBox.length} other photo(s) in ${boxLabel(boxNum)}?`);
       if (updateOthers) {
         otherPhotosInBox.forEach(p => p.category = trimmedCategory);
         await DriveStorage.savePhotosets(photoSets);
@@ -818,7 +884,7 @@ async function editPhotoCategory(suggestedCategory = null) {
       return itemBox === String(boxNum);
     });
     if (boxItems.length > 0) {
-      const updateItems = confirm(`Update category for ${boxItems.length} inventory item(s) in Box ${boxNum} too?`);
+      const updateItems = confirm(`Update category for ${boxItems.length} inventory item(s) in ${boxLabel(boxNum)} too?`);
       if (updateItems) {
         boxItems.forEach(item => item.category = trimmedCategory);
         await DriveStorage.saveInventory(inventory);
@@ -828,6 +894,37 @@ async function editPhotoCategory(suggestedCategory = null) {
   } catch (err) {
     console.error('Failed to save category:', err);
     alert('Failed to save category: ' + err.message);
+  }
+}
+
+// Rename the box shown in the photo modal. The prefix is a property of the
+// box, so this rewrites every photoset row for that box.
+async function editBoxName() {
+  if (currentPhotoIndex < 0 || currentPhotoIndex >= photoSets.length) return;
+  const photo = photoSets[currentPhotoIndex];
+
+  const current = boxPrefixOf(photo.box);
+  const entered = prompt(
+    'Box name prefix? It gets numbered automatically among boxes sharing it.\n' +
+    `e.g. "GardenBox" shows as "GardenBox 1". Use "${DEFAULT_BOX_PREFIX}" for the default.`,
+    current
+  );
+  if (entered === null) return; // cancelled
+
+  const trimmed = entered.trim() || DEFAULT_BOX_PREFIX;
+  if (trimmed === current) return;
+
+  try {
+    const ok = await setBoxPrefix(photo.box, trimmed);
+    if (!ok) {
+      alert('Could not rename: no photos found for this box.');
+      return;
+    }
+    document.getElementById('modal-box-number').textContent = boxLabel(photo.box);
+    renderPhotoGrid();
+  } catch (err) {
+    console.error('Failed to rename box:', err);
+    alert('Failed to rename box: ' + err.message);
   }
 }
 
@@ -977,7 +1074,7 @@ function renderResults(items, grouped = false) {
       }).join('');
       return `
         <div class="box-group">
-          <h3>Box ${box}</h3>
+          <h3>${boxLabel(box)}</h3>
           <ul>${itemList}</ul>
         </div>
       `;
@@ -995,7 +1092,7 @@ function renderResults(items, grouped = false) {
           ${item.model ? `<span>${item.model}</span>` : ''}
         </div>
         ${item.notes ? `<div class="notes">${item.notes}</div>` : ''}
-        <span class="box-label">Box ${box}</span>
+        <span class="box-label">${boxLabel(box)}</span>
       </div>
     `;
   }).join('');
@@ -2072,6 +2169,7 @@ const addStuffState = {
   pendingPhotos: [],      // { file, dataUrl, analyzing }
   detectedItems: [],      // { item, brand, model, type, confirmed }
   selectedBox: null,
+  newBoxPrefix: null,     // prefix for a box being created this session
   chatHistory: []
 };
 
@@ -2280,12 +2378,22 @@ async function handleAddMessage(message) {
     return;
   }
 
-  // Check for box selection when we have pending items
-  const boxMatch = message.match(/box\s*(\d+)/i);
-  if (boxMatch && addStuffState.detectedItems.length > 0) {
-    addStuffState.selectedBox = parseInt(boxMatch[1]);
-    await saveInventoryItems();
-    return;
+  // Check for box selection when we have pending items. Match the labels
+  // actually on screen first, so "GardenBox 1" picks that box rather than
+  // being read as box number 1.
+  if (addStuffState.detectedItems.length > 0) {
+    const labelledBox = findBoxByLabel(message);
+    if (labelledBox !== null) {
+      addStuffState.selectedBox = labelledBox;
+      await saveInventoryItems();
+      return;
+    }
+    const boxMatch = message.match(/box\s*(\d+)/i);
+    if (boxMatch) {
+      addStuffState.selectedBox = parseInt(boxMatch[1]);
+      await saveInventoryItems();
+      return;
+    }
   }
 
   // If we have detected items, check for confirmation
@@ -2294,14 +2402,28 @@ async function handleAddMessage(message) {
       // Confirm all items
       addStuffState.detectedItems.forEach(item => item.confirmed = true);
       updateDetectedItemsUI();
-      addAddChatMessage('Great! Which box should these go in? (e.g., "Box 3" or "new box")', 'assistant');
+      const known = allBoxNumbers().map(b => `"${boxLabel(b)}"`).join(', ');
+      addAddChatMessage(
+        `Great! Which box should these go in?${known ? ` (${known})` : ''} Or say "new box".`,
+        'assistant'
+      );
       return;
     }
 
     if (lowerMsg.includes('new box')) {
-      // Create new box
+      // Create new box. The number stays internal; the prefix is what the
+      // user sees, numbered among boxes sharing that prefix.
       const maxBox = Math.max(...photoSets.map(p => p.box), 0);
       addStuffState.selectedBox = maxBox + 1;
+
+      const prefix = prompt(
+        'Name for the new box? Just the prefix - it gets numbered automatically.\n' +
+        `Leave as "${DEFAULT_BOX_PREFIX}" for the usual numbering, or try "GardenBox".`,
+        DEFAULT_BOX_PREFIX
+      );
+      if (prefix === null) return; // cancelled
+      addStuffState.newBoxPrefix = prefix.trim() || DEFAULT_BOX_PREFIX;
+
       const category = prompt('What category for the new box?', 'Tools');
       if (category) {
         await saveInventoryItems(category);
@@ -2319,7 +2441,7 @@ async function addItemWithoutPhoto(itemName, boxNum) {
   // Find an existing photoset for this box to get category
   const existingPhoto = photoSets.find(p => p.box === boxNum);
   if (!existingPhoto) {
-    addAddChatMessage(`Box ${boxNum} doesn't exist yet. Take a photo first to create the box, or use a different box number.`, 'assistant');
+    addAddChatMessage(`${boxLabel(boxNum)} doesn't exist yet. Take a photo first to create the box, or use a different box number.`, 'assistant');
     return;
   }
 
@@ -2346,7 +2468,7 @@ async function addItemWithoutPhoto(itemName, boxNum) {
   // Save to Drive
   try {
     await DriveStorage.saveInventory(inventory);
-    addAddChatMessage(`Added "${itemName}" to Box ${boxNum}!`, 'assistant');
+    addAddChatMessage(`Added "${itemName}" to ${boxLabel(boxNum)}!`, 'assistant');
   } catch (err) {
     console.error('Failed to save:', err);
     addAddChatMessage(`Error saving: ${err.message}`, 'assistant');
@@ -2369,7 +2491,7 @@ async function continueAddConversation(message) {
     const context = {
       pendingPhotos: addStuffState.pendingPhotos.length,
       detectedItems: addStuffState.detectedItems,
-      existingBoxes: [...new Set(photoSets.map(p => p.box))].sort((a, b) => a - b)
+      existingBoxes: allBoxNumbers().map(b => boxLabel(b))
     };
 
     const response = await fetch(OPENROUTER_API_URL, {
@@ -2469,6 +2591,9 @@ async function saveInventoryItems(newCategory = null) {
         driveId: uploaded.id,
         box: box,
         view: viewLetter,
+        // Photos added to an existing box inherit its prefix so every row
+        // for a box agrees on the name.
+        boxPrefix: addStuffState.newBoxPrefix || boxPrefixOf(box),
         category: newCategory || addStuffState.detectedItems[0]?.category || 'Tools'
       });
     }
@@ -2502,7 +2627,7 @@ async function saveInventoryItems(newCategory = null) {
     renderPhotoGrid();
 
     removeAddThinkingMessage();
-    addAddChatMessage(`Saved ${newItems.length} item${newItems.length > 1 ? 's' : ''} to Box ${box}!`, 'assistant');
+    addAddChatMessage(`Saved ${newItems.length} item${newItems.length > 1 ? 's' : ''} to ${boxLabel(box)}!`, 'assistant');
 
     // Clear state for next batch
     clearAddStuffState();
@@ -2550,6 +2675,7 @@ function clearAddStuffState() {
   addStuffState.pendingPhotos = [];
   addStuffState.detectedItems = [];
   addStuffState.selectedBox = null;
+  addStuffState.newBoxPrefix = null;
   addStuffState.chatHistory = [];
   document.getElementById('pending-photos').innerHTML = '';
   document.getElementById('detected-items').innerHTML = '';

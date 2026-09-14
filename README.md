@@ -51,6 +51,21 @@ You can add items with or without photos:
 - **Type**: e.g., "electric", "pneumatic", "hand tool"
 - **Notes**: e.g., "In case", "needs new belt"
 
+## Naming Boxes
+
+Boxes are called "Box 1", "Box 2", … by default. If a box lives somewhere
+else, give it its own name:
+
+- **When creating one:** say "new box" in Add Stuff and enter a prefix, e.g. `GardenBox`
+- **Later:** open any photo of the box and tap the pencil next to the box name
+
+You enter only the prefix — the number is added automatically, counting boxes
+that share that prefix. So your first garden box shows as **GardenBox 1**,
+the next as **GardenBox 2**, while your numbered boxes carry on as Box 1, 2, 3.
+
+Note: the number is a position, so deleting a box renumbers the ones after it
+that share its prefix.
+
 ## Deleting Photos
 
 1. Tap a photo to open it

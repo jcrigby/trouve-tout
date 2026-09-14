@@ -715,6 +715,17 @@ header h1 a:active {
 }
 
 /* Modal category container */
+.modal-box-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.modal-box-header h2 {
+  margin: 0;
+}
+
 .modal-category-container {
   display: flex;
   align-items: center;

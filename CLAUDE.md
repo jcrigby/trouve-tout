@@ -65,11 +65,30 @@ All data is stored in the user's Google Drive in a "Trouve-Tout" folder:
   "file": "1a.jpg",
   "box": 1,
   "view": "a",
+  "boxPrefix": "GardenBox",
   "category": "Nail Guns & Fasteners",
   "driveId": "1abc123...",
   "caption": "Top shelf nailers and staplers"
 }
 ```
+
+`boxPrefix` is optional and defaults to `Box`. It is a property of the whole
+box, so every photoset row for a given box carries the same value.
+
+### Box Numbers vs Box Names
+
+`box` is **identity, not display**. It builds photo filenames
+(`{box}{view}.jpg`) and item ids (`{box}{view}{seq}`), and is recovered from
+an item by stripping letters off `item.photoSet`. It must stay numeric and
+globally unique — never renumber it to make a label look right.
+
+What the user sees is `boxPrefix` plus a position: `boxLabel()` counts boxes
+sharing a prefix, so the first `GardenBox` reads "GardenBox 1" even though it
+is internally box 5. Boxes with no prefix read "Box 1", "Box 2", … exactly as
+before. Render box names with `boxLabel(n)` — never hardcode `Box ${n}`.
+
+Because the index is positional, deleting a box renumbers the boxes after it
+within the same prefix.
 
 ### ID Convention
 - Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")
