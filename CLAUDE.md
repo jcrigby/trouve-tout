@@ -20,6 +20,10 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Shows all box photos in a grid
 - Tap a photo to see the box number and category
 - Swipe left/right to navigate between photos
+- Pinch to zoom the photo, drag to pan while zoomed, double tap to toggle
+  (double click / wheel on desktop). Zoom resets when the photo changes or
+  the modal closes. Swiping only navigates at fit, so a pan while zoomed
+  does not skip to the next photo.
 - "Show Box Contents" lists that box's inventory; tap any item to open the
   item modal and edit or delete it. The list refreshes in place afterwards.
 - The delete button is labelled by consequence, via `deleteButtonLabel()`:

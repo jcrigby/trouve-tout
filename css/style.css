@@ -788,6 +788,24 @@ header h1 a:active {
   margin-bottom: var(--space-md);
 }
 
+/* Clips the photo while it is zoomed, so a scaled image stays inside its
+   frame instead of spilling over the rest of the modal. */
+.modal-image-wrap {
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-md);
+  /* the browser must not claim the gesture - we handle pinch and pan */
+  touch-action: none;
+}
+
+.modal-image-wrap img {
+  margin-bottom: 0;
+  border-radius: 0;
+  display: block;
+  transform-origin: center center;
+  will-change: transform;
+}
+
 #modal-image {
   touch-action: none;
   cursor: grab;

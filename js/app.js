@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '87';
+const BUILD_NUMBER = '88';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -103,12 +103,83 @@ const itemModal = document.getElementById('item-modal');
 const tabs = document.querySelectorAll('.tab');
 const modeContents = document.querySelectorAll('.mode-content');
 
+// ==================== Photo zoom ====================
+// Pinch to zoom a box photo, drag to pan while zoomed, double tap to toggle.
+// The point of a box photo is seeing what is actually in the box, which
+// often means looking closer than a phone screen allows.
+const MAX_PHOTO_ZOOM = 5;
+
+const photoZoom = {
+  scale: 1,
+  x: 0,
+  y: 0,
+  startDist: 0,
+  startScale: 1,
+  startX: 0,
+  startY: 0,
+  pinching: false,
+  panning: false,
+  // Tap tracking. A double tap is decided on release from duration and
+  // movement - keying it off touchstart alone misreads two quick drags
+  // (say, two pans in a row) as a double tap.
+  lastTap: 0,
+  tapTime: 0,
+  tapX: 0,
+  tapY: 0,
+  moved: false,
+};
+
+function touchDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.hypot(dx, dy);
+}
+
+// Keep the zoomed photo over its own frame - panning should not be able to
+// drag it off into empty space.
+function clampPhotoPan(img) {
+  if (photoZoom.scale <= 1) {
+    photoZoom.x = 0;
+    photoZoom.y = 0;
+    return;
+  }
+  const maxX = (img.clientWidth * (photoZoom.scale - 1)) / 2;
+  const maxY = (img.clientHeight * (photoZoom.scale - 1)) / 2;
+  photoZoom.x = Math.max(-maxX, Math.min(maxX, photoZoom.x));
+  photoZoom.y = Math.max(-maxY, Math.min(maxY, photoZoom.y));
+}
+
+function applyPhotoTransform() {
+  const img = document.getElementById('modal-image');
+  if (!img) return;
+  clampPhotoPan(img);
+  img.style.transform =
+    `translate(${photoZoom.x}px, ${photoZoom.y}px) scale(${photoZoom.scale})`;
+  img.style.cursor = photoZoom.scale > 1 ? 'grab' : '';
+}
+
+// Back to fit. Called whenever the photo changes or the modal closes, so a
+// zoom never carries over to the next picture.
+function resetPhotoZoom() {
+  photoZoom.scale = 1;
+  photoZoom.x = 0;
+  photoZoom.y = 0;
+  photoZoom.pinching = false;
+  photoZoom.panning = false;
+  const img = document.getElementById('modal-image');
+  if (img) {
+    img.style.transform = '';
+    img.style.cursor = '';
+  }
+}
+
 // Go home - close all modals and switch to Browse Photos tab
 function goHome() {
   // Close all modals
   document.querySelectorAll('.modal').forEach(modal => {
     modal.classList.remove('active');
   });
+  resetPhotoZoom();
 
   // Switch to Browse Photos tab
   tabs.forEach(t => t.classList.remove('active'));
@@ -382,6 +453,7 @@ function setupEventListeners() {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
       btn.closest('.modal')?.classList.remove('active');
+      resetPhotoZoom();
     });
   });
 
@@ -470,22 +542,125 @@ function setupEventListeners() {
     showAllInventory();
   });
 
-  // Swipe navigation for photo modal
+  // Pinch-zoom, pan and swipe on the photo. These share the same touches, so
+  // they are handled together: two fingers zoom, one finger pans while
+  // zoomed and swipes between photos otherwise. Listeners are passive:false
+  // because a pinch has to preventDefault or the browser zooms the page.
   const modalImage = document.getElementById('modal-image');
+
   modalImage.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchEndX = touchStartX; // Reset to prevent accidental triggers
-  }, { passive: true });
+    if (e.touches.length === 2) {
+      photoZoom.pinching = true;
+      photoZoom.panning = false;
+      photoZoom.startDist = touchDistance(e.touches);
+      photoZoom.startScale = photoZoom.scale;
+      e.preventDefault();
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      photoZoom.tapTime = Date.now();
+      photoZoom.tapX = e.touches[0].clientX;
+      photoZoom.tapY = e.touches[0].clientY;
+      photoZoom.moved = false;
+
+      if (photoZoom.scale > 1) {
+        photoZoom.panning = true;
+        photoZoom.startX = e.touches[0].clientX - photoZoom.x;
+        photoZoom.startY = e.touches[0].clientY - photoZoom.y;
+      } else {
+        touchStartX = e.touches[0].clientX;
+        touchEndX = touchStartX; // Reset to prevent accidental triggers
+      }
+    }
+  }, { passive: false });
 
   modalImage.addEventListener('touchmove', (e) => {
-    touchEndX = e.touches[0].clientX;
-  }, { passive: true });
+    if (photoZoom.pinching && e.touches.length === 2) {
+      const dist = touchDistance(e.touches);
+      if (photoZoom.startDist > 0) {
+        const next = photoZoom.startScale * (dist / photoZoom.startDist);
+        photoZoom.scale = Math.min(MAX_PHOTO_ZOOM, Math.max(1, next));
+        applyPhotoTransform();
+      }
+      e.preventDefault();
+      return;
+    }
 
-  modalImage.addEventListener('touchend', () => {
-    handleSwipe();
+    if (e.touches.length === 1) {
+      const dx = e.touches[0].clientX - photoZoom.tapX;
+      const dy = e.touches[0].clientY - photoZoom.tapY;
+      if (Math.hypot(dx, dy) > 10) photoZoom.moved = true;
+    }
+
+    if (photoZoom.panning && e.touches.length === 1) {
+      photoZoom.x = e.touches[0].clientX - photoZoom.startX;
+      photoZoom.y = e.touches[0].clientY - photoZoom.startY;
+      applyPhotoTransform();
+      e.preventDefault();
+      return;
+    }
+
+    if (e.touches.length === 1 && photoZoom.scale === 1) {
+      touchEndX = e.touches[0].clientX;
+    }
+  }, { passive: false });
+
+  modalImage.addEventListener('touchend', (e) => {
+    const wasPinching = photoZoom.pinching;
+    const wasPanning = photoZoom.panning;
+
+    if (e.touches.length > 0) return; // still mid-gesture
+
+    photoZoom.pinching = false;
+    photoZoom.panning = false;
+    // Nearly back to fit - snap, so a slightly-off pinch does not leave
+    // the photo stuck a hair off centre.
+    if (photoZoom.scale <= 1.05 && !wasPanning) resetPhotoZoom();
+
+    // A quick, still touch is a tap; two in a row toggle the zoom.
+    const heldBriefly = Date.now() - photoZoom.tapTime < 250;
+    const isTap = !wasPinching && !photoZoom.moved && heldBriefly;
+    if (isTap) {
+      const now = Date.now();
+      if (now - photoZoom.lastTap < 350) {
+        photoZoom.scale = photoZoom.scale > 1 ? 1 : 2.5;
+        photoZoom.x = 0;
+        photoZoom.y = 0;
+        applyPhotoTransform();
+        photoZoom.lastTap = 0;
+        e.preventDefault();
+      } else {
+        photoZoom.lastTap = now;
+      }
+      touchStartX = 0;
+      touchEndX = 0;
+      return;
+    }
+
+    // Only navigate when the photo is at fit and this was a plain swipe.
+    if (!wasPinching && !wasPanning && photoZoom.scale === 1) handleSwipe();
     touchStartX = 0;
     touchEndX = 0;
-  }, { passive: true });
+  }, { passive: false });
+
+  // Desktop equivalents, so this is testable and usable with a mouse.
+  modalImage.addEventListener('dblclick', (e) => {
+    photoZoom.scale = photoZoom.scale > 1 ? 1 : 2.5;
+    photoZoom.x = 0;
+    photoZoom.y = 0;
+    applyPhotoTransform();
+    e.preventDefault();
+  });
+
+  modalImage.addEventListener('wheel', (e) => {
+    if (!photoModal.classList.contains('active')) return;
+    const next = photoZoom.scale * (e.deltaY < 0 ? 1.15 : 1 / 1.15);
+    photoZoom.scale = Math.min(MAX_PHOTO_ZOOM, Math.max(1, next));
+    if (photoZoom.scale === 1) { photoZoom.x = 0; photoZoom.y = 0; }
+    applyPhotoTransform();
+    e.preventDefault();
+  }, { passive: false });
 
   // Keyboard navigation for photo modal
   document.addEventListener('keydown', (e) => {
@@ -496,6 +671,7 @@ function setupEventListeners() {
       showNextPhoto();
     } else if (e.key === 'Escape') {
       photoModal.classList.remove('active');
+      resetPhotoZoom();
     }
   });
 }
@@ -582,6 +758,7 @@ async function showPhotoModal(file, box, category, driveId) {
   const modalImage = document.getElementById('modal-image');
   const photo = photoSets[currentPhotoIndex];
   document.getElementById('delete-photo-btn').textContent = deleteButtonLabel(photo);
+  resetPhotoZoom();
 
   // Load image with auth if from Drive
   if (photo && photo.driveId) {
@@ -654,6 +831,7 @@ async function updatePhotoDisplay() {
   const photo = photoSets[currentPhotoIndex];
   const img = document.getElementById('modal-image');
   currentBoxNumber = photo.box;
+  resetPhotoZoom();
 
   img.style.opacity = '0.5';
 
