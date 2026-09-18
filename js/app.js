@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '88';
+const BUILD_NUMBER = '89';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -156,6 +156,8 @@ function applyPhotoTransform() {
   img.style.transform =
     `translate(${photoZoom.x}px, ${photoZoom.y}px) scale(${photoZoom.scale})`;
   img.style.cursor = photoZoom.scale > 1 ? 'grab' : '';
+  // Only take the gesture away from the browser while actually zoomed.
+  img.closest('.modal-image-wrap')?.classList.toggle('zoomed', photoZoom.scale > 1);
 }
 
 // Back to fit. Called whenever the photo changes or the modal closes, so a
@@ -170,6 +172,7 @@ function resetPhotoZoom() {
   if (img) {
     img.style.transform = '';
     img.style.cursor = '';
+    img.closest('.modal-image-wrap')?.classList.remove('zoomed');
   }
 }
 
@@ -697,6 +700,12 @@ function showBoxContents(boxNumber) {
   const listHtml = renderInventoryList(boxItems, { interactive: true });
   btn.insertAdjacentHTML('afterend', listHtml);
   btn.textContent = 'Hide Box Contents';
+
+  // The list opens below the fold on a phone, and the photo above it cannot
+  // be used to scroll while zoomed - so showing it without bringing it into
+  // view looks like the button did nothing.
+  const list = photoModal.querySelector('.inventory-list');
+  list?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Re-render the box contents list in place, if it is currently showing.

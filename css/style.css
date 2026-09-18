@@ -794,7 +794,15 @@ header h1 a:active {
   overflow: hidden;
   border-radius: var(--radius-md);
   margin-bottom: var(--space-md);
-  /* the browser must not claim the gesture - we handle pinch and pan */
+  /* At fit, a vertical drag should still scroll the modal - the photo fills
+     most of the sheet, so it is exactly where a thumb lands when you try to
+     reach the box contents below it. pan-y leaves horizontal drags to our
+     swipe handler and still lets us claim a two-finger pinch. */
+  touch-action: pan-y;
+}
+
+/* Zoomed, the gesture is ours: one finger pans the photo. */
+.modal-image-wrap.zoomed {
   touch-action: none;
 }
 
@@ -804,10 +812,18 @@ header h1 a:active {
   display: block;
   transform-origin: center center;
   will-change: transform;
+  /* Matches the wrapper: vertical drags scroll the sheet at fit, and the
+     photo only claims the gesture once it is zoomed. */
+  touch-action: pan-y;
+}
+
+.modal-image-wrap.zoomed img {
+  touch-action: none;
 }
 
 #modal-image {
-  touch-action: none;
+  /* touch-action lives on .modal-image-wrap img below, so it can follow the
+     zoom level. An id selector here would outrank it. */
   cursor: grab;
   user-select: none;
   transition: opacity 0.15s ease-out;
