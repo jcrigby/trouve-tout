@@ -45,6 +45,15 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Chat-based interface for adding photos and inventory
 - AI-powered tool identification from photos (via OpenRouter)
 - Photos stored in Google Drive
+- The file input deliberately has **no `capture` attribute**, so the phone
+  offers the photo library as well as the camera. Adding `capture` back
+  would force the camera and make existing photos unusable.
+- Every chosen photo goes through `prepareImageForUpload()`: re-encoded to
+  JPEG, longest edge capped at `MAX_PHOTO_EDGE`. Library photos can be
+  HEIC, PNG or screenshots and several MB, but the uploader names
+  everything `{box}{view}.jpg` - so without re-encoding a HEIC would be
+  stored as .jpg and fail to decode outside Safari. Falls back to the
+  original bytes if the browser cannot decode the file.
 
 ## Data Storage
 

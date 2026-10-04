@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '89';
+const BUILD_NUMBER = '90';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -2498,16 +2498,68 @@ const addStuffState = {
 };
 
 // Handle photos selected for Add Stuff
+// Longest edge we keep. Enough to pinch-zoom into and still read a label,
+// without pushing multi-megabyte originals through the vision API and Drive.
+const MAX_PHOTO_EDGE = 2048;
+const PHOTO_JPEG_QUALITY = 0.85;
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('read failed'));
+    reader.readAsDataURL(file);
+  });
+}
+
+// Normalise a chosen photo to a bounded JPEG.
+//
+// Photos picked from a phone's library are not what the camera button used to
+// hand us: they can be HEIC, PNG or a screenshot, and routinely 4-5MB. The
+// uploader names every file {box}{view}.jpg regardless, so an un-converted
+// HEIC would be stored as .jpg and then fail to decode anywhere except
+// Safari. Re-encoding through a canvas normalises the format and the size.
+//
+// If the browser cannot decode the file (HEIC on a desktop browser, say), we
+// fall back to the original bytes rather than losing the photo.
+async function prepareImageForUpload(file) {
+  const originalDataUrl = await readFileAsDataUrl(file);
+
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('decode failed'));
+      image.src = originalDataUrl;
+    });
+
+    const longest = Math.max(img.naturalWidth, img.naturalHeight);
+    if (!longest) throw new Error('zero-sized image');
+
+    const ratio = Math.min(1, MAX_PHOTO_EDGE / longest);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.naturalWidth * ratio);
+    canvas.height = Math.round(img.naturalHeight * ratio);
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+    const jpeg = canvas.toDataURL('image/jpeg', PHOTO_JPEG_QUALITY);
+    // A canvas that could not read the pixels returns a tiny blank result.
+    if (!jpeg.startsWith('data:image/jpeg') || jpeg.length < 1000) {
+      throw new Error('encode produced nothing usable');
+    }
+    return jpeg;
+  } catch (err) {
+    console.warn('Could not re-encode photo, uploading as picked:', err.message);
+    return originalDataUrl;
+  }
+}
+
 async function handlePhotosSelected(files) {
   const pendingContainer = document.getElementById('pending-photos');
 
   for (const file of files) {
-    // Convert to data URL for preview and vision API
-    const dataUrl = await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.readAsDataURL(file);
-    });
+    // Bounded JPEG for preview, the vision API and Drive alike
+    const dataUrl = await prepareImageForUpload(file);
 
     const photoEntry = { file, dataUrl, analyzing: false };
     addStuffState.pendingPhotos.push(photoEntry);

@@ -37,7 +37,8 @@ Requires connecting to OpenRouter (free account).
 ## Adding Photos
 
 1. Go to the **+ Add Stuff** tab
-2. Tap the camera button to take or select a photo
+2. Tap the camera button, then either take a new photo or pick one you
+   already have in your photo library
 3. AI will identify tools in the photo (if OpenRouter connected)
 4. Confirm or edit the detected items
 5. Items are saved to your inventory
