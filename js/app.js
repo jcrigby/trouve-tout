@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '94';
+const BUILD_NUMBER = '95';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -140,6 +140,59 @@ function findBoxByLabel(message) {
   const peers = allBoxNumbers().filter(b => boxPrefixOf(b) === ref.prefix);
   const box = peers[ref.number - 1];
   return box === undefined ? null : box;
+}
+
+// Prefixes for showing to a person, most recently used first - the series you
+// just added to is the one you are most likely adding to again. Distinct from
+// knownBoxPrefixes(), which is ordered longest-first for matching and must
+// stay that way.
+function boxPrefixesByRecency() {
+  const newest = new Map();
+  allBoxNumbers().forEach(b => {
+    const prefix = boxPrefixOf(b);
+    newest.set(prefix, Math.max(newest.get(prefix) ?? 0, b));
+  });
+  return [...newest.entries()].sort((a, b) => b[1] - a[1]).map(([prefix]) => prefix);
+}
+
+// Ask which series a new box belongs to, rather than making the user retype a
+// name exactly. Typing "Box" by accident is how a seed-starting box ended up
+// as plain "Box 7". Returns a prefix, or null if cancelled.
+function askForBoxPrefix() {
+  const inUse = boxPrefixesByRecency();
+
+  if (inUse.length === 0) {
+    const first = prompt(
+      'Name for the new box? Just the prefix - it gets numbered automatically.',
+      DEFAULT_BOX_PREFIX
+    );
+    return first === null ? null : (first.trim() || DEFAULT_BOX_PREFIX);
+  }
+
+  const menu = inUse.map((prefix, i) => `${i + 1}) ${prefix}`).join('\n');
+  const newOption = inUse.length + 1;
+  const answer = prompt(
+    'Which series is this box part of?\n\n' + menu +
+    `\n${newOption}) Start a new series\n\nEnter a number (or type a name):`,
+    '1'
+  );
+  if (answer === null) return null;
+
+  const trimmed = answer.trim();
+  const choice = Number(trimmed);
+  if (Number.isInteger(choice) && choice >= 1 && choice <= inUse.length) {
+    return inUse[choice - 1];
+  }
+  if (choice === newOption) {
+    const name = prompt(
+      'Name for the new series? It gets numbered automatically, so leave the ' +
+      'number off.',
+      ''
+    );
+    return name === null ? null : (name.trim() || DEFAULT_BOX_PREFIX);
+  }
+  // Typed a name instead of picking a number - take them at their word.
+  return trimmed || DEFAULT_BOX_PREFIX;
 }
 
 // Naming a series that exists at a position that does not - "Seed starting
@@ -2887,15 +2940,9 @@ async function handleAddMessage(message) {
       const maxBox = Math.max(...photoSets.map(p => p.box), 0);
       addStuffState.selectedBox = maxBox + 1;
 
-      const inUse = knownBoxPrefixes();
-      const prefix = prompt(
-        'Name for the new box? Just the prefix - it gets numbered automatically.\n' +
-        (inUse.length ? `Already in use: ${inUse.join(', ')}. ` : '') +
-        `Reuse one to add to that series, or type a new name.`,
-        DEFAULT_BOX_PREFIX
-      );
+      const prefix = askForBoxPrefix();
       if (prefix === null) return; // cancelled
-      addStuffState.newBoxPrefix = prefix.trim() || DEFAULT_BOX_PREFIX;
+      addStuffState.newBoxPrefix = prefix;
 
       const category = prompt('What category for the new box?', 'Tools');
       if (category) {

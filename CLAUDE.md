@@ -52,6 +52,11 @@ A 404 from OpenRouter now names the dead model in the UI.
 - Chat-based interface for adding photos and inventory
 - AI-powered tool identification from photos (via OpenRouter)
 - Photos stored in Google Drive
+- Saying "new box" asks which series it belongs to via `askForBoxPrefix()`:
+  a numbered menu of the prefixes already in use, most recently used first,
+  plus "Start a new series". Typing a name still works. Making the user
+  retype a prefix exactly is what produced a stray plain "Box 7" instead of
+  a second seed-starting box.
 - The file input deliberately has **no `capture` attribute**, so the phone
   offers the photo library as well as the camera. Adding `capture` back
   would force the camera and make existing photos unusable.
