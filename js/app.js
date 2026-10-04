@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '91';
+const BUILD_NUMBER = '92';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -100,6 +100,18 @@ async function setBoxPrefix(boxNumber, prefix) {
   return true;
 }
 
+function escapeForRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// A label must match on a word boundary, not as a substring. Plain
+// `includes` meant "GardenBox 2" contained "Box 2", so asking for the second
+// garden box silently filed everything into Box 2.
+function messageNamesLabel(msg, label) {
+  const re = new RegExp(`(^|[^a-z0-9])${escapeForRegExp(label.toLowerCase())}($|[^a-z0-9])`);
+  return re.test(msg);
+}
+
 // Match a typed box reference against the labels actually in use, so
 // "GardenBox 1" selects the right box and not box 1.
 function findBoxByLabel(message) {
@@ -109,8 +121,27 @@ function findBoxByLabel(message) {
   const candidates = allBoxNumbers()
     .map(b => ({ box: b, label: boxLabel(b).toLowerCase() }))
     .sort((a, b) => b.label.length - a.label.length);
-  const hit = candidates.find(c => msg.includes(c.label));
+  const hit = candidates.find(c => messageNamesLabel(msg, c.label));
   return hit ? hit.box : null;
+}
+
+// Every prefix currently in use, longest first so "GardenBox" is tested
+// before the "Box" that is a suffix of it.
+function knownBoxPrefixes() {
+  return [...new Set(allBoxNumbers().map(b => boxPrefixOf(b)))]
+    .sort((a, b) => b.length - a.length);
+}
+
+// "GardenBox 2" when only GardenBox 1 exists is a request to start the next
+// box in that series - not a typo, and not Box 2. Returns the prefix to
+// create under, or null. Only reached when no existing label matched.
+function newBoxPrefixFromMessage(message) {
+  const msg = String(message || '').trim().toLowerCase();
+  if (!msg) return null;
+  return knownBoxPrefixes().find(prefix => {
+    const re = new RegExp(`(^|[^a-z0-9])${escapeForRegExp(prefix.toLowerCase())}\\s*\\d*($|[^a-z0-9])`);
+    return re.test(msg);
+  }) || null;
 }
 
 // DOM elements
@@ -2786,7 +2817,24 @@ async function handleAddMessage(message) {
       await saveInventoryItems();
       return;
     }
-    const boxMatch = message.match(/box\s*(\d+)/i);
+    // Naming a series that exists, at a number that does not, starts the
+    // next box in that series.
+    const seriesPrefix = newBoxPrefixFromMessage(message);
+    if (seriesPrefix) {
+      const maxBox = Math.max(...photoSets.map(p => p.box), 0);
+      addStuffState.selectedBox = maxBox + 1;
+      addStuffState.newBoxPrefix = seriesPrefix;
+      const category = prompt(
+        `Category for the new ${seriesPrefix}?`,
+        addStuffState.detectedItems[0]?.category || 'Tools'
+      );
+      if (category === null) return; // cancelled
+      await saveInventoryItems(category);
+      return;
+    }
+
+    // \b so "GardenBox 2" is never read as box number 2
+    const boxMatch = message.match(/\bbox\s*(\d+)/i);
     if (boxMatch) {
       addStuffState.selectedBox = parseInt(boxMatch[1]);
       await saveInventoryItems();
@@ -2814,9 +2862,11 @@ async function handleAddMessage(message) {
       const maxBox = Math.max(...photoSets.map(p => p.box), 0);
       addStuffState.selectedBox = maxBox + 1;
 
+      const inUse = knownBoxPrefixes();
       const prefix = prompt(
         'Name for the new box? Just the prefix - it gets numbered automatically.\n' +
-        `Leave as "${DEFAULT_BOX_PREFIX}" for the usual numbering, or try "GardenBox".`,
+        (inUse.length ? `Already in use: ${inUse.join(', ')}. ` : '') +
+        `Reuse one to add to that series, or type a new name.`,
         DEFAULT_BOX_PREFIX
       );
       if (prefix === null) return; // cancelled

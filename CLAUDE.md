@@ -114,6 +114,16 @@ before. Render box names with `boxLabel(n)` — never hardcode `Box ${n}`.
 Because the index is positional, deleting a box renumbers the boxes after it
 within the same prefix.
 
+**Match labels on word boundaries, never as substrings.** "GardenBox 2"
+*contains* "Box 2", so a plain `includes` filed the second garden box into
+Box 2 (and "Box 20" matched "Box 2"). `findBoxByLabel()` and the
+`/\bbox\s*(\d+)/` fallback both require a boundary.
+
+Naming a series at a number that does not exist yet - "GardenBox 2" when only
+GardenBox 1 exists - starts the next box in that series, via
+`newBoxPrefixFromMessage()`. Prefixes are tested longest-first so "GardenBox"
+beats the "Box" that is a suffix of it.
+
 ### ID Convention
 - Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")
 - Auto-generated when adding items via the app
