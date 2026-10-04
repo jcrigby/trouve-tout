@@ -41,6 +41,13 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
 - Uses OpenRouter OAuth PKCE (no backend needed)
 - Connects to Claude Haiku via OpenRouter API
 
+**Model slugs rot.** `MODELS` in app.js pins OpenRouter slugs, and OpenRouter
+retires old ones: `anthropic/claude-3-haiku` was live in September 2026 and
+gone by October, which surfaced only as "API error: 404" the moment anyone
+sent a chat message. If the AI features start failing, check
+`https://openrouter.ai/api/v1/models` before debugging anything else.
+A 404 from OpenRouter now names the dead model in the UI.
+
 ### 4. Add Stuff
 - Chat-based interface for adding photos and inventory
 - AI-powered tool identification from photos (via OpenRouter)
@@ -225,7 +232,8 @@ git push -u origin claude/ship-{description}-{sessionId}
 ### OpenRouter (Ask AI)
 - OAuth PKCE flow for static sites
 - API key stored in localStorage
-- Uses Claude Haiku for chat, Claude Sonnet for vision
+- Uses Claude Haiku for chat, Claude Sonnet for vision (current slugs in
+  `MODELS`; verify against OpenRouter's live model list when they fail)
 
 ## UI Notes
 - Keep it simple and fast

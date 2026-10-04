@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '90';
+const BUILD_NUMBER = '91';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -28,10 +28,30 @@ const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 const SILENT_REFRESH_TIMEOUT_MS = 6000;
 
 // AI Models
+// OpenRouter model slugs. These are not forever: anthropic/claude-3-haiku was
+// live in September 2026 and retired by October, which surfaced as a bare
+// "API error: 404" the moment anyone sent a chat message. If the AI features
+// start 404ing, check https://openrouter.ai/api/v1/models before anything else.
 const MODELS = {
-  vision: 'anthropic/claude-sonnet-4',  // For photo analysis
-  chat: 'anthropic/claude-3-haiku'       // For general conversation
+  vision: 'anthropic/claude-sonnet-5.5',  // For photo analysis
+  chat: 'anthropic/claude-haiku-4.5'      // For general conversation
 };
+
+// A 404 from OpenRouter means the model slug no longer exists, which reads as
+// a baffling "API error: 404" unless we say what actually happened.
+function describeOpenRouterError(status, message, model) {
+  if (status === 404) {
+    return `The AI model "${model}" is no longer available from OpenRouter. ` +
+           `The app needs updating to a current model.`;
+  }
+  if (status === 401 || status === 403) {
+    return 'OpenRouter rejected the key. Try disconnecting and reconnecting in Settings.';
+  }
+  if (status === 429) {
+    return 'OpenRouter is rate limiting. Wait a moment and try again.';
+  }
+  return message || `API error: ${status}`;
+}
 
 // ==================== Box labels ====================
 //
@@ -1321,7 +1341,8 @@ Respond with ONLY the category name, nothing else.`
     });
 
     if (!aiResponse.ok) {
-      throw new Error(`API error: ${aiResponse.status}`);
+      const err = await aiResponse.json().catch(() => ({}));
+      throw new Error(describeOpenRouterError(aiResponse.status, err.error?.message, MODELS.vision));
     }
 
     const data = await aiResponse.json();
@@ -2228,8 +2249,8 @@ Example response:
     removeThinkingMessage();
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error?.message || `API error: ${response.status}`);
+      const error = await response.json().catch(() => ({}));
+      throw new Error(describeOpenRouterError(response.status, error.error?.message, MODELS.chat));
     }
 
     const data = await response.json();
@@ -2637,7 +2658,8 @@ Only output the JSON array, no other text.`
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(describeOpenRouterError(response.status, err.error?.message, MODELS.vision));
     }
 
     const data = await response.json();
@@ -2905,7 +2927,8 @@ Keep responses short and action-oriented.`
     removeAddThinkingMessage();
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      const err = await response.json().catch(() => ({}));
+      throw new Error(describeOpenRouterError(response.status, err.error?.message, MODELS.chat));
     }
 
     const data = await response.json();
