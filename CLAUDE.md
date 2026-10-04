@@ -25,7 +25,13 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
   the modal closes. Swiping only navigates at fit, so a pan while zoomed
   does not skip to the next photo.
 - "Show Box Contents" lists that box's inventory; tap any item to open the
-  item modal and edit or delete it. The list refreshes in place afterwards.
+  item modal and edit, move or delete it, and use "+ Add an item to this box"
+  at the foot of the list to add one without a photo. The list refreshes in
+  place afterwards.
+- **Moving an item** repoints `item.photoSet` at a photo of the destination
+  box and reissues `item.id`, because both encode the box. `nextItemId()`
+  scans existing ids rather than counting items - counting collides as soon
+  as anything has been deleted.
 - The delete button is labelled by consequence, via `deleteButtonLabel()`:
   "Delete This View" / "Delete Photo" / "Delete Photo & N Items" /
   "Delete Box & N Items". Deleting a photo also deletes any item whose only

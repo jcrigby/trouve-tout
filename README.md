@@ -67,6 +67,15 @@ the next as **GardenBox 2**, while your numbered boxes carry on as Box 1, 2, 3.
 Note: the number is a position, so deleting a box renumbers the ones after it
 that share its prefix.
 
+## Changing What's in a Box
+
+Open a photo and tap **Show Box Contents**:
+
+- **Add** — "+ Add an item to this box" at the foot of the list
+- **Edit** — tap an item, then **Edit Item**
+- **Move** — tap an item, then **Move to Another Box**, and pick from the list
+- **Delete** — tap an item, then **Delete Item**
+
 ## Deleting Photos
 
 1. Tap a photo to open it

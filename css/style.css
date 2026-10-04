@@ -1783,3 +1783,27 @@ select:focus-visible {
   border-color: var(--border-light);
   background: var(--bg-elevated);
 }
+
+/* Add-an-item row at the foot of the box contents list */
+.inventory-add {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px dashed var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.inventory-add:hover,
+.inventory-add:active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-subtle);
+}

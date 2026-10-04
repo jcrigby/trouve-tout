@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '95';
+const BUILD_NUMBER = '96';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -87,6 +87,107 @@ function boxLabel(boxNumber) {
   // A box with no photos yet has no peers to count among; fall back to its
   // own number so the label is still meaningful.
   return `${prefix} ${index >= 0 ? index + 1 : num}`;
+}
+
+// Next free item id for a box/view. Counting existing items and adding one
+// collides as soon as anything has been deleted - remove the 2nd of 3 and the
+// next add would reuse an id that is still in use.
+function nextItemId(box, view) {
+  const prefix = `${box}${view}`;
+  const used = new Set(inventory.map(i => i.id));
+  let seq = 1;
+  inventory.forEach(i => {
+    const m = String(i.id).match(new RegExp(`^${escapeForRegExp(prefix)}(\\d+)$`));
+    if (m) seq = Math.max(seq, parseInt(m[1], 10) + 1);
+  });
+  let id = `${prefix}${seq}`;
+  while (used.has(id)) id = `${prefix}${++seq}`;
+  return id;
+}
+
+// Numbered menu of the boxes, so a destination is picked rather than typed.
+// Returns an internal box number, or null if cancelled.
+function askForBox(title, excludeBox = null) {
+  const boxes = allBoxNumbers().filter(b => b !== excludeBox);
+  if (boxes.length === 0) return null;
+  const menu = boxes.map((b, i) => `${i + 1}) ${boxLabel(b)}`).join('\n');
+  const answer = prompt(`${title}\n\n${menu}\n\nEnter a number:`, '1');
+  if (answer === null) return null;
+  const choice = Number(answer.trim());
+  if (Number.isInteger(choice) && choice >= 1 && choice <= boxes.length) {
+    return boxes[choice - 1];
+  }
+  return findBoxByLabel(answer); // typing the label works too
+}
+
+// Move the open item to another box. Which box an item is in is derived from
+// item.photoSet, so moving means repointing that at a photo of the
+// destination - and reissuing the id, which encodes the box too.
+async function moveCurrentItem() {
+  if (!currentItem) return;
+  const fromBox = Number(currentItem.photoSet.split('/')[0].replace(/[a-z]/g, ''));
+  const target = askForBox(`Move "${currentItem.item}" to which box?`, fromBox);
+  if (target === null) return;
+
+  const destPhoto = photoSets.find(p => p.box === target);
+  if (!destPhoto) {
+    alert('That box has no photo yet, so there is nothing to attach the item to.');
+    return;
+  }
+
+  const previous = { id: currentItem.id, photoSet: currentItem.photoSet };
+  currentItem.photoSet = destPhoto.file.replace('.jpg', '');
+  currentItem.id = nextItemId(target, destPhoto.view);
+
+  try {
+    await DriveStorage.saveInventory(inventory);
+    itemModal.classList.remove('active');
+    performSearch();
+    refreshBoxContentsIfOpen();
+    populateCategories();
+  } catch (err) {
+    // Roll back rather than leave local state ahead of Drive.
+    currentItem.id = previous.id;
+    currentItem.photoSet = previous.photoSet;
+    console.error('Failed to move item:', err);
+    alert('Failed to move item: ' + err.message);
+  }
+}
+
+// Add an item straight into the box whose contents are showing.
+async function addItemToBox(boxNumber) {
+  const photo = photoSets.find(p => p.box === Number(boxNumber));
+  if (!photo) return;
+
+  const name = prompt('What is it?', '');
+  if (name === null) return;
+  if (!name.trim()) return;
+
+  const brand = prompt('Brand? (leave blank if unknown)', '');
+  if (brand === null) return;
+
+  const newItem = {
+    id: nextItemId(photo.box, photo.view),
+    category: photo.category || 'Tools',
+    photoSet: photo.file.replace('.jpg', ''),
+    item: name.trim(),
+    brand: brand.trim() || 'Unknown',
+    model: '',
+    type: '',
+    notes: ''
+  };
+  inventory.push(newItem);
+
+  try {
+    await DriveStorage.saveInventory(inventory);
+    refreshBoxContentsIfOpen();
+    performSearch();
+    populateCategories();
+  } catch (err) {
+    inventory.pop();
+    console.error('Failed to add item:', err);
+    alert('Failed to add item: ' + err.message);
+  }
 }
 
 // Rename a box: the prefix belongs to the box, so it applies to every
@@ -209,17 +310,6 @@ function newBoxPrefixFromMessage(message) {
   if (ref.number === null && ref.prefix === DEFAULT_BOX_PREFIX) return null;
 
   return ref.prefix;
-}
-
-// Rename a box: the prefix belongs to the box, so it applies to every
-// photoset row for that box, not just the photo in view.
-async function setBoxPrefix(boxNumber, prefix) {
-  const trimmed = (prefix || '').trim() || DEFAULT_BOX_PREFIX;
-  const rows = photoSets.filter(p => p.box === Number(boxNumber));
-  if (rows.length === 0) return false;
-  rows.forEach(p => { p.boxPrefix = trimmed; });
-  await DriveStorage.savePhotosets(photoSets);
-  return true;
 }
 
 // DOM elements
@@ -622,6 +712,10 @@ function setupEventListeners() {
   // already carries Edit and Delete. Delegated, because the list is
   // re-rendered whenever it changes.
   photoModal.addEventListener('click', (e) => {
+    if (e.target.closest('.inventory-add')) {
+      addItemToBox(currentBoxNumber);
+      return;
+    }
     const row = e.target.closest('.inventory-row');
     if (!row) return;
     const item = inventory.find(i => i.id === row.dataset.itemId);
@@ -634,6 +728,10 @@ function setupEventListeners() {
   });
 
   // Delete item button
+  document.getElementById('move-item-btn').addEventListener('click', () => {
+    moveCurrentItem();
+  });
+
   document.getElementById('delete-item-btn').addEventListener('click', () => {
     deleteCurrentItem();
   });
@@ -869,7 +967,10 @@ function showAllInventory() {
 // Render inventory list HTML
 function renderInventoryList(items, { interactive = false } = {}) {
   if (items.length === 0) {
-    return '<div class="inventory-list"><p class="no-results">No items in this box</p></div>';
+    const addEmpty = interactive
+      ? `<button type="button" class="inventory-add">+ Add an item to this box</button>`
+      : '';
+    return `<div class="inventory-list"><p class="no-results">No items in this box</p>${addEmpty}</div>`;
   }
 
   const itemList = items.map(item => {
@@ -885,7 +986,10 @@ function renderInventoryList(items, { interactive = false } = {}) {
     </button></li>`;
   }).join('');
 
-  return `<div class="inventory-list"><ul>${itemList}</ul></div>`;
+  const addRow = interactive
+    ? `<button type="button" class="inventory-add">+ Add an item to this box</button>`
+    : '';
+  return `<div class="inventory-list"><ul>${itemList}</ul>${addRow}</div>`;
 }
 
 // Show photo modal with box number
@@ -2965,10 +3069,7 @@ async function addItemWithoutPhoto(itemName, boxNum) {
     return;
   }
 
-  // Generate a unique ID
-  const boxItems = inventory.filter(i => i.photoSet.startsWith(String(boxNum)));
-  const nextSeq = boxItems.length + 1;
-  const newId = `${boxNum}a${nextSeq}`;
+  const newId = nextItemId(boxNum, existingPhoto.view);
 
   // Create the new item
   const newItem = {
