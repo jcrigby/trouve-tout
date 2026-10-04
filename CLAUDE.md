@@ -114,15 +114,22 @@ before. Render box names with `boxLabel(n)` — never hardcode `Box ${n}`.
 Because the index is positional, deleting a box renumbers the boxes after it
 within the same prefix.
 
-**Match labels on word boundaries, never as substrings.** "GardenBox 2"
-*contains* "Box 2", so a plain `includes` filed the second garden box into
-Box 2 (and "Box 20" matched "Box 2"). `findBoxByLabel()` and the
-`/\bbox\s*(\d+)/` fallback both require a boundary.
+**Resolve a typed box by PREFIX, never by searching for label substrings.**
+`parseBoxReference()` tries each known prefix longest-first and reads the
+number after it. Substring search cannot be made safe here: a shorter label
+always hides inside a longer one. "GardenBox 2" contains "Box 2", and so does
+"Seed starting box 2" - the latter *with* a word boundary in front, so even
+boundary-checked matching resolved it to plain Box 2 and filed the items
+there silently. Prefixes containing the word "box" are normal, not an edge
+case.
 
-Naming a series at a number that does not exist yet - "GardenBox 2" when only
-GardenBox 1 exists - starts the next box in that series, via
-`newBoxPrefixFromMessage()`. Prefixes are tested longest-first so "GardenBox"
-beats the "Box" that is a suffix of it.
+Labels are positional within a prefix, so "<prefix> N" is the Nth box sharing
+that prefix - `findBoxByLabel()` indexes the peer list rather than comparing
+rendered strings.
+
+Naming a series at a position that does not exist yet - "Seed starting box 2"
+when only one exists - starts the next box in that series, via
+`newBoxPrefixFromMessage()`.
 
 ### ID Convention
 - Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")

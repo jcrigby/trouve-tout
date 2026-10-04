@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '92';
+const BUILD_NUMBER = '93';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -104,44 +104,61 @@ function escapeForRegExp(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// A label must match on a word boundary, not as a substring. Plain
-// `includes` meant "GardenBox 2" contained "Box 2", so asking for the second
-// garden box silently filed everything into Box 2.
-function messageNamesLabel(msg, label) {
-  const re = new RegExp(`(^|[^a-z0-9])${escapeForRegExp(label.toLowerCase())}($|[^a-z0-9])`);
-  return re.test(msg);
-}
-
-// Match a typed box reference against the labels actually in use, so
-// "GardenBox 1" selects the right box and not box 1.
-function findBoxByLabel(message) {
+// Parse a typed box reference into { prefix, number }.
+//
+// This deliberately matches by PREFIX, longest first, rather than searching
+// the message for label substrings. Substring search always lets a shorter
+// label win inside a longer one: "GardenBox 2" contains "Box 2", and so does
+// "Seed starting box 2" - the latter even with a word boundary in front of
+// it. Both silently resolved to plain Box 2.
+function parseBoxReference(message) {
   const msg = String(message || '').trim().toLowerCase();
   if (!msg) return null;
-  // longest label first, so "GardenBox 1" wins over a bare "Box 1"
-  const candidates = allBoxNumbers()
-    .map(b => ({ box: b, label: boxLabel(b).toLowerCase() }))
-    .sort((a, b) => b.label.length - a.label.length);
-  const hit = candidates.find(c => messageNamesLabel(msg, c.label));
-  return hit ? hit.box : null;
+  for (const prefix of knownBoxPrefixes()) {
+    const re = new RegExp(
+      `(^|[^a-z0-9])${escapeForRegExp(prefix.toLowerCase())}\\s*(\\d+)?($|[^a-z0-9])`
+    );
+    const m = msg.match(re);
+    if (m) return { prefix, number: m[2] ? parseInt(m[2], 10) : null };
+  }
+  return null;
 }
 
-// Every prefix currently in use, longest first so "GardenBox" is tested
-// before the "Box" that is a suffix of it.
+// Every prefix currently in use, longest first so "Seed starting box" is
+// tested before the "Box" that is a suffix of it.
 function knownBoxPrefixes() {
   return [...new Set(allBoxNumbers().map(b => boxPrefixOf(b)))]
     .sort((a, b) => b.length - a.length);
 }
 
-// "GardenBox 2" when only GardenBox 1 exists is a request to start the next
-// box in that series - not a typo, and not Box 2. Returns the prefix to
-// create under, or null. Only reached when no existing label matched.
+// The box a reference names, or null if no box carries that label yet.
+// Labels are positional within a prefix, so "<prefix> N" is the Nth box
+// sharing that prefix.
+function findBoxByLabel(message) {
+  const ref = parseBoxReference(message);
+  if (!ref || ref.number === null) return null;
+  const peers = allBoxNumbers().filter(b => boxPrefixOf(b) === ref.prefix);
+  const box = peers[ref.number - 1];
+  return box === undefined ? null : box;
+}
+
+// Naming a series that exists at a position that does not - "Seed starting
+// box 2" when only one exists - is a request to start the next box in it.
 function newBoxPrefixFromMessage(message) {
-  const msg = String(message || '').trim().toLowerCase();
-  if (!msg) return null;
-  return knownBoxPrefixes().find(prefix => {
-    const re = new RegExp(`(^|[^a-z0-9])${escapeForRegExp(prefix.toLowerCase())}\\s*\\d*($|[^a-z0-9])`);
-    return re.test(msg);
-  }) || null;
+  const ref = parseBoxReference(message);
+  if (!ref) return null;
+  return findBoxByLabel(message) === null ? ref.prefix : null;
+}
+
+// Rename a box: the prefix belongs to the box, so it applies to every
+// photoset row for that box, not just the photo in view.
+async function setBoxPrefix(boxNumber, prefix) {
+  const trimmed = (prefix || '').trim() || DEFAULT_BOX_PREFIX;
+  const rows = photoSets.filter(p => p.box === Number(boxNumber));
+  if (rows.length === 0) return false;
+  rows.forEach(p => { p.boxPrefix = trimmed; });
+  await DriveStorage.savePhotosets(photoSets);
+  return true;
 }
 
 // DOM elements
