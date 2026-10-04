@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '93';
+const BUILD_NUMBER = '94';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -147,7 +147,15 @@ function findBoxByLabel(message) {
 function newBoxPrefixFromMessage(message) {
   const ref = parseBoxReference(message);
   if (!ref) return null;
-  return findBoxByLabel(message) === null ? ref.prefix : null;
+  if (findBoxByLabel(message) !== null) return null;  // that box already exists
+
+  // "new box" parses as the default prefix with no position. That is NOT a
+  // request to extend the plain Box series - it is a request to make a box
+  // whose name we have not been told yet. Returning "Box" here swallowed the
+  // prefix prompt and silently produced another plain box instead.
+  if (ref.number === null && ref.prefix === DEFAULT_BOX_PREFIX) return null;
+
+  return ref.prefix;
 }
 
 // Rename a box: the prefix belongs to the box, so it applies to every
@@ -2873,7 +2881,7 @@ async function handleAddMessage(message) {
       return;
     }
 
-    if (lowerMsg.includes('new box')) {
+    if (/\b(new|another)\s+box\b/i.test(message)) {
       // Create new box. The number stays internal; the prefix is what the
       // user sees, numbered among boxes sharing that prefix.
       const maxBox = Math.max(...photoSets.map(p => p.box), 0);

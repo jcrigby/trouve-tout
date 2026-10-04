@@ -131,6 +131,12 @@ Naming a series at a position that does not exist yet - "Seed starting box 2"
 when only one exists - starts the next box in that series, via
 `newBoxPrefixFromMessage()`.
 
+That helper must NOT claim "new box". It parses as the default prefix with no
+position, and treating it as "extend the Box series" swallowed the prefix
+prompt - the user was never asked what to call the box and silently got
+another plain one. A reference with no number and the default prefix is a
+request to name a box, not to extend a series.
+
 ### ID Convention
 - Format: `{box}{view}{sequence}` (e.g., "1a1", "1a2", "2a1")
 - Auto-generated when adding items via the app
