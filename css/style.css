@@ -1807,3 +1807,55 @@ select:focus-visible {
   border-color: var(--accent);
   background: var(--accent-subtle);
 }
+
+/* ============================================
+   SORTING SHELF - items out of a box, not yet filed
+   ============================================ */
+.sorting-shelf {
+  background: var(--bg-card);
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.sorting-shelf h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 1rem;
+  color: var(--text-primary);
+}
+
+.sorting-shelf .shelf-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 var(--space-xs);
+  border-radius: var(--radius-full);
+  background: var(--gradient-accent);
+  color: var(--bg-primary);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.sorting-shelf .shelf-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: var(--space-xs);
+}
+
+.sorting-shelf .inventory-list {
+  margin-top: var(--space-sm);
+}
+
+/* Shown in the item modal in place of photos */
+.shelf-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: var(--space-md);
+}

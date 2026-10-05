@@ -32,6 +32,23 @@ A simple static PWA for searching and browsing a personal tool inventory. Hosted
   box and reissues `item.id`, because both encode the box. `nextItemId()`
   scans existing ids rather than counting items - counting collides as soon
   as anything has been deleted.
+
+### The sorting shelf
+
+An item with an empty `photoSet` is **on the sorting shelf** - out of its box
+but not yet filed, like a library's returns trolley. That is the only way to
+express "no box", since the box is derived from `photoSet` and never stored.
+
+Never derive the box inline. `itemBoxNumber()` returns the box or `null`, and
+`itemLocationLabel()` renders either the box label or "Sorting shelf". Every
+caller goes through these, so "no box" is a case the app handles rather than
+an empty string leaking into a `=== String(boxNumber)` comparison and quietly
+matching nothing.
+
+The shelf surfaces in three places: a panel above the photo grid
+(`renderSortingShelf()`, hidden when empty), a group listed first in "Show All
+Inventory", and the location chip on search results. Anything that changes
+inventory must call `renderSortingShelf()` alongside `refreshBoxContentsIfOpen()`.
 - The delete button is labelled by consequence, via `deleteButtonLabel()`:
   "Delete This View" / "Delete Photo" / "Delete Photo & N Items" /
   "Delete Box & N Items". Deleting a photo also deletes any item whose only

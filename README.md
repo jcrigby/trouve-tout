@@ -74,6 +74,9 @@ Open a photo and tap **Show Box Contents**:
 - **Add** — "+ Add an item to this box" at the foot of the list
 - **Edit** — tap an item, then **Edit Item**
 - **Move** — tap an item, then **Move to Another Box**, and pick from the list
+- **Not sure where it goes?** Pick **Sorting shelf**. The item comes out of
+  its box and waits in a panel above your photos until you file it — like the
+  trolley a library parks returns on. The shelf disappears once it's empty.
 - **Delete** — tap an item, then **Delete Item**
 
 ## Deleting Photos

@@ -11,7 +11,7 @@ let touchEndX = 0;
 // build of the SCRIPT actually running - if a stale app.js is being served
 // from cache, the footer says so instead of reporting the fresh HTML.
 // Bump together with CACHE_NAME in sw.js and the ?v= on the script tag.
-const BUILD_NUMBER = '96';
+const BUILD_NUMBER = '97';
 
 // OpenRouter OAuth config
 const OPENROUTER_AUTH_URL = 'https://openrouter.ai/auth';
@@ -89,6 +89,36 @@ function boxLabel(boxNumber) {
   return `${prefix} ${index >= 0 ? index + 1 : num}`;
 }
 
+// ==================== Sorting shelf ====================
+// A place for items that are out of their box but not yet filed - the tray a
+// library parks returns on before reshelving. An item is on the shelf when it
+// has no photoSet, which is also the only way to express "no box": the box an
+// item lives in is derived from that string, never stored.
+const SORTING_SHELF_LABEL = 'Sorting shelf';
+
+function isOnSortingShelf(item) {
+  return !item || !item.photoSet;
+}
+
+// The box an item is in, or null when it is on the shelf. Every caller that
+// used to inline the split/replace goes through this, so "no box" is a case
+// the whole app handles rather than an empty string leaking into comparisons.
+function itemBoxNumber(item) {
+  if (isOnSortingShelf(item)) return null;
+  const digits = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+  return digits === '' ? null : Number(digits);
+}
+
+// Where an item reads as living.
+function itemLocationLabel(item) {
+  const box = itemBoxNumber(item);
+  return box === null ? SORTING_SHELF_LABEL : boxLabel(box);
+}
+
+function shelfItems() {
+  return inventory.filter(isOnSortingShelf);
+}
+
 // Next free item id for a box/view. Counting existing items and adding one
 // collides as soon as anything has been deleted - remove the 2nd of 3 and the
 // next add would reuse an id that is still in use.
@@ -107,17 +137,23 @@ function nextItemId(box, view) {
 
 // Numbered menu of the boxes, so a destination is picked rather than typed.
 // Returns an internal box number, or null if cancelled.
-function askForBox(title, excludeBox = null) {
+// Returns an internal box number, the string 'shelf', or null if cancelled.
+function askForBox(title, { excludeBox = null, offerShelf = true } = {}) {
   const boxes = allBoxNumbers().filter(b => b !== excludeBox);
-  if (boxes.length === 0) return null;
-  const menu = boxes.map((b, i) => `${i + 1}) ${boxLabel(b)}`).join('\n');
+  const options = boxes.map(b => ({ value: b, label: boxLabel(b) }));
+  if (offerShelf) options.push({ value: 'shelf', label: SORTING_SHELF_LABEL });
+  if (options.length === 0) return null;
+
+  const menu = options.map((o, i) => `${i + 1}) ${o.label}`).join('\n');
   const answer = prompt(`${title}\n\n${menu}\n\nEnter a number:`, '1');
   if (answer === null) return null;
+
   const choice = Number(answer.trim());
-  if (Number.isInteger(choice) && choice >= 1 && choice <= boxes.length) {
-    return boxes[choice - 1];
+  if (Number.isInteger(choice) && choice >= 1 && choice <= options.length) {
+    return options[choice - 1].value;
   }
-  return findBoxByLabel(answer); // typing the label works too
+  if (/shelf|sort/i.test(answer)) return 'shelf';
+  return findBoxByLabel(answer); // typing a box label works too
 }
 
 // Move the open item to another box. Which box an item is in is derived from
@@ -125,25 +161,36 @@ function askForBox(title, excludeBox = null) {
 // destination - and reissuing the id, which encodes the box too.
 async function moveCurrentItem() {
   if (!currentItem) return;
-  const fromBox = Number(currentItem.photoSet.split('/')[0].replace(/[a-z]/g, ''));
-  const target = askForBox(`Move "${currentItem.item}" to which box?`, fromBox);
+  const fromBox = itemBoxNumber(currentItem);
+  const target = askForBox(`Where should "${currentItem.item}" go?`, {
+    excludeBox: fromBox,
+    // Already on the shelf? Then the only useful moves are into a box.
+    offerShelf: !isOnSortingShelf(currentItem)
+  });
   if (target === null) return;
 
-  const destPhoto = photoSets.find(p => p.box === target);
-  if (!destPhoto) {
-    alert('That box has no photo yet, so there is nothing to attach the item to.');
-    return;
-  }
-
   const previous = { id: currentItem.id, photoSet: currentItem.photoSet };
-  currentItem.photoSet = destPhoto.file.replace('.jpg', '');
-  currentItem.id = nextItemId(target, destPhoto.view);
+
+  if (target === 'shelf') {
+    // Out of its box, not yet filed. The id keeps its old box prefix, which
+    // is harmless - it is only ever regenerated on the way back into a box.
+    currentItem.photoSet = '';
+  } else {
+    const destPhoto = photoSets.find(p => p.box === target);
+    if (!destPhoto) {
+      alert('That box has no photo yet, so there is nothing to attach the item to.');
+      return;
+    }
+    currentItem.photoSet = destPhoto.file.replace('.jpg', '');
+    currentItem.id = nextItemId(target, destPhoto.view);
+  }
 
   try {
     await DriveStorage.saveInventory(inventory);
     itemModal.classList.remove('active');
     performSearch();
     refreshBoxContentsIfOpen();
+    renderSortingShelf();
     populateCategories();
   } catch (err) {
     // Roll back rather than leave local state ahead of Drive.
@@ -182,6 +229,7 @@ async function addItemToBox(boxNumber) {
     await DriveStorage.saveInventory(inventory);
     refreshBoxContentsIfOpen();
     performSearch();
+    renderSortingShelf();
     populateCategories();
   } catch (err) {
     inventory.pop();
@@ -456,6 +504,7 @@ async function init() {
   // Check if image cache is still valid for this folder
   await DriveStorage.checkCacheValidity();
   renderPhotoGrid();
+  renderSortingShelf();
   populateCategories();
 
   // Switch to appropriate tab after OAuth
@@ -617,6 +666,36 @@ async function loadDriveImages() {
   await Promise.all(loadPromises);
 }
 
+// Show what is waiting on the sorting shelf, above the photo grid. Without
+// this the shelf would be a place items vanish into - the whole point is that
+// the pile is visible until it is dealt with.
+function renderSortingShelf() {
+  const panel = document.getElementById('sorting-shelf');
+  if (!panel) return;
+
+  const waiting = shelfItems();
+  if (waiting.length === 0) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+    return;
+  }
+
+  const rows = waiting.map(item => {
+    const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
+    return `<li class="inventory-li-row"><button type="button" class="inventory-row" data-item-id="${item.id}">
+      <span class="inventory-row-name">${item.item}${brand}</span>
+      <span class="inventory-row-edit" aria-hidden="true">&#9998;</span>
+    </button></li>`;
+  }).join('');
+
+  panel.style.display = 'block';
+  panel.innerHTML = `
+    <h3>${SORTING_SHELF_LABEL} <span class="shelf-count">${waiting.length}</span></h3>
+    <p class="shelf-hint">Out of their boxes, waiting to be filed. Tap one to put it away.</p>
+    <div class="inventory-list"><ul>${rows}</ul></div>
+  `;
+}
+
 // Populate category dropdown
 function populateCategories() {
   const categories = [...new Set(inventory.map(item => item.category))];
@@ -711,6 +790,13 @@ function setupEventListeners() {
   // Tapping an item in the box contents list opens the item modal, which
   // already carries Edit and Delete. Delegated, because the list is
   // re-rendered whenever it changes.
+  document.getElementById('sorting-shelf').addEventListener('click', (e) => {
+    const row = e.target.closest('.inventory-row');
+    if (!row) return;
+    const item = inventory.find(i => i.id === row.dataset.itemId);
+    if (item) showItemModal(item);
+  });
+
   photoModal.addEventListener('click', (e) => {
     if (e.target.closest('.inventory-add')) {
       addItemToBox(currentBoxNumber);
@@ -919,10 +1005,7 @@ function showBoxContents(boxNumber) {
   }
 
   // Otherwise show the list
-  const boxItems = inventory.filter(item => {
-    const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
-    return itemBox === String(boxNumber);
-  });
+  const boxItems = inventory.filter(item => itemBoxNumber(item) === Number(boxNumber));
 
   const listHtml = renderInventoryList(boxItems, { interactive: true });
   btn.insertAdjacentHTML('afterend', listHtml);
@@ -942,10 +1025,7 @@ function refreshBoxContentsIfOpen() {
   const existingList = photoModal.querySelector('.inventory-list');
   if (!existingList || currentBoxNumber === null) return;
 
-  const boxItems = inventory.filter(item => {
-    const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
-    return itemBox === String(currentBoxNumber);
-  });
+  const boxItems = inventory.filter(item => itemBoxNumber(item) === Number(currentBoxNumber));
   existingList.outerHTML = renderInventoryList(boxItems, { interactive: true });
 }
 
@@ -1137,8 +1217,11 @@ async function showItemModal(item) {
   currentItem = item;
   document.getElementById('item-name').textContent = item.item;
 
-  const photos = item.photoSet.split('/');
-  const box = photos[0].replace(/[a-z]/g, '');
+  // An item on the shelf has no photoSet at all, so there are no photos to
+  // show and no box to name.
+  const onShelf = isOnSortingShelf(item);
+  const photos = onShelf ? [] : item.photoSet.split('/');
+  const location = itemLocationLabel(item);
 
   document.getElementById('item-details').innerHTML = `
     <p><strong>Brand:</strong> ${item.brand || 'Unknown'}</p>
@@ -1146,14 +1229,16 @@ async function showItemModal(item) {
     <p><strong>Type:</strong> ${item.type}</p>
     <p><strong>Category:</strong> ${item.category}</p>
     ${item.notes ? `<p><strong>Notes:</strong> ${item.notes}</p>` : ''}
-    <p><strong>Location:</strong> ${boxLabel(box)}</p>
+    <p><strong>Location:</strong> ${location}</p>
   `;
 
   // Create placeholder images
   const photosContainer = document.getElementById('item-photos');
-  photosContainer.innerHTML = photos.map((p, i) =>
-    `<img alt="${boxLabel(box)}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
-  ).join('');
+  photosContainer.innerHTML = onShelf
+    ? '<p class="shelf-note">Not in a box yet - use "Move to Another Box" to file it.</p>'
+    : photos.map((p, i) =>
+        `<img alt="${location}" loading="lazy" data-photo-ref="${p}" id="item-photo-${i}">`
+      ).join('');
 
   // Load photos from Drive with auth
   for (let i = 0; i < photos.length; i++) {
@@ -1221,6 +1306,7 @@ async function editCurrentItem() {
     itemModal.classList.remove('active');
     performSearch(); // Refresh results
     refreshBoxContentsIfOpen();
+    renderSortingShelf();
     populateCategories();
   } catch (err) {
     console.error('Failed to save:', err);
@@ -1247,6 +1333,7 @@ async function deleteCurrentItem() {
     itemModal.classList.remove('active');
     performSearch(); // Refresh results
     refreshBoxContentsIfOpen();
+    renderSortingShelf();
     populateCategories();
   } catch (err) {
     console.error('Failed to delete:', err);
@@ -1432,10 +1519,7 @@ async function editPhotoCategory(suggestedCategory = null) {
     }
 
     // Also update matching inventory items if user wants
-    const boxItems = inventory.filter(item => {
-      const itemBox = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
-      return itemBox === String(boxNum);
-    });
+    const boxItems = inventory.filter(item => itemBoxNumber(item) === Number(boxNum));
     if (boxItems.length > 0) {
       const updateItems = confirm(`Update category for ${boxItems.length} inventory item(s) in ${boxLabel(boxNum)} too?`);
       if (updateItems) {
@@ -1615,20 +1699,28 @@ function renderResults(items, grouped = false) {
     // Group by box number
     const byBox = {};
     items.forEach(item => {
-      const box = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
-      if (!byBox[box]) byBox[box] = [];
-      byBox[box].push(item);
+      const box = itemBoxNumber(item);
+      const key = box === null ? 'shelf' : String(box);
+      if (!byBox[key]) byBox[key] = [];
+      byBox[key].push(item);
     });
 
-    results.innerHTML = Object.keys(byBox).sort((a, b) => a - b).map(box => {
-      const boxItems = byBox[box];
+    // Shelf first - it is the pile that still needs doing.
+    const keys = Object.keys(byBox).sort((a, b) => {
+      if (a === 'shelf') return -1;
+      if (b === 'shelf') return 1;
+      return Number(a) - Number(b);
+    });
+
+    results.innerHTML = keys.map(key => {
+      const boxItems = byBox[key];
       const itemList = boxItems.map(item => {
         const brand = item.brand && item.brand !== 'Unknown' ? ` (${item.brand})` : '';
         return `<li>${item.item}${brand}</li>`;
       }).join('');
       return `
         <div class="box-group">
-          <h3>${boxLabel(box)}</h3>
+          <h3>${key === 'shelf' ? SORTING_SHELF_LABEL : boxLabel(Number(key))}</h3>
           <ul>${itemList}</ul>
         </div>
       `;
@@ -1637,7 +1729,7 @@ function renderResults(items, grouped = false) {
   }
 
   results.innerHTML = items.map(item => {
-    const box = item.photoSet.split('/')[0].replace(/[a-z]/g, '');
+    const location = itemLocationLabel(item);
     return `
       <div class="result-item" data-id="${item.id}">
         <div class="result-row">
@@ -1648,7 +1740,7 @@ function renderResults(items, grouped = false) {
               ${item.model ? `<span>${item.model}</span>` : ''}
             </div>
           </div>
-          <span class="box-label">${boxLabel(box)}</span>
+          <span class="box-label">${location}</span>
         </div>
         ${item.notes ? `<div class="notes">${item.notes}</div>` : ''}
       </div>
